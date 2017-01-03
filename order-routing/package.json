@@ -1,0 +1,22 @@
+{
+  "name": "order-routing",
+  "version": "1.0.0",
+  "description": "Route tradedepot orders to the right distributors",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "order-routing"
+  ],
+  "author": "C2G Consulting",
+  "license": "ISC",
+  "dependencies": {
+    "asyncawait": "^1.0.6",
+    "babel": "^6.5.2",
+    "mongodb": "^2.2.16",
+    "promised-mongo": "^1.2.0",
+    "underscore": "^1.8.3",
+    "when": "^3.7.7"
+  }
+}
