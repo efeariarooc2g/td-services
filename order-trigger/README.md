@@ -1,5 +1,5 @@
-# TD-USSD 
-> AWS Lambda function that will receive an authorized request form ussd provider and process the action based on custormer request
+# ORDER-TRIGGER
+> AWS Lambda function that will receive an authorized request from (iot device, ussd) and process the action based on custormer request
 
 * node ^4.x.x
 * ES6 codebase
@@ -7,7 +7,7 @@
 
 ## Usage
 
-Download the [`/dist/build.zip`](https://github.com/andrewmclagan/aws-lambda-ec2-start-stop/releases/latest) file from the latest release and deploy it as a lambda function.
+Download the [`/dist/build.zip`](https://github.com/tradedepot/td-services/tree/ussd-resolver/order-trigger/dist/build.zip) file from the latest release and deploy it as a lambda function.
 
 Build
 
@@ -30,22 +30,20 @@ Make sure your lambda function is able to use SNS for sending notification.
 
 ```json
 {
-  "Id": "Policy1415489375392",
-  "Statement": [
-    {
-      "Sid": "AWSConfigSNSPolicy20150201",
-      "Action": [
-        "SNS:Publish"
-      ],
-      "Effect": "Allow",
-      "Resource": "arn:aws:sns:region:account-id:myTopic",
-      "Principal": {
-        "Service": [
-          "config.amazonaws.com"
-        ]
-      }
-    }
-  ]
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sns:ListSubscriptionsByTopic",
+                "sns:CreateTopic",
+                "sns:SetTopicAttributes",
+                "sns:Subscribe",
+                "sns:Publish"
+            ],
+            "Resource": "*"
+        }
+    ]
 }
 ```
 
