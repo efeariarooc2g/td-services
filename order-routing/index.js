@@ -4,6 +4,7 @@
 "use strict";
 
 // test order
+/*
 let order = {
     "retailerId": "23jk4Z3dpmcPoMakJ",
     "shippingAddressId": "p5a34hmtLwc7wXJCf",
@@ -46,17 +47,21 @@ let order = {
         "isPromo": true
     }],
     "priceListCode": "10"
-}
+};
+*/
 
 
 var _ = require("underscore");
 var async = require('asyncawait/async');
 var await = require('asyncawait/await');
+var express    = require('express');        // call express
+var app        = express();                 // define our app using express
+var bodyParser = require('body-parser');
 
 var Core = require("./core");
 
 
-var processOrder = async (function() {
+var processOrder = async (function(order) {
    let doc = await (Core.generateRetailerOrder(order));
    let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
     if (retailOutlet){
@@ -66,10 +71,39 @@ var processOrder = async (function() {
     }
 });
 
-processOrder().then(function (result) {
-    console.log(result)
+
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+var port = process.env.PORT || 3000;        // set our port
+
+// ROUTES FOR OUR API
+// =============================================================================
+var router = express.Router();
+
+router.get('/', function(req, res) {
+
 });
 
+router.route('/orders')
+    .post(function(req, res) {
+        processOrder(req.body).then(function (result) {
+            res.json(result);
+        });
+    });
+
+
+// more routes for our API will happen here
+
+// REGISTER OUR ROUTES -------------------------------
+// all of our routes will be prefixed with /api
+app.use('/api', router);
+
+// START THE SERVER
+// =============================================================================
+app.listen(port);
+console.log('Magic happens on port ' + port);
 
 
 
