@@ -123,7 +123,7 @@ function generateProducerOrders(doc, retailOutlet){
                     return await (canServiceOrder(order, o, retailOutlet))
                 });
                 if (order){
-                    let index = _.indexOf(pendingOrders, order);
+                    let index = _.findLastIndex(pendingOrders, order);
                     pendingOrders = pendingOrders.splice(index, 1);
                     orders.push(order)
                 }
