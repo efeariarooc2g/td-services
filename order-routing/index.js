@@ -109,9 +109,9 @@ function generateProducerOrders(doc, retailOutlet){
             $maxDistance: 5 * METERS_PER_MILE } } }).toArray());
 
         let outlet;
-        outlet = _.find(distributorOutlets, function (o) {
-            return canServiceAll(o, pendingOrders, retailOutlet)
-        });
+        outlet = await (_.find(distributorOutlets, function (o) {
+            return await (canServiceAll(o, pendingOrders, retailOutlet))
+        }));
         if (outlet){
             _.each(pendingOrders, function (order) {
                 orders.push(order)
@@ -120,10 +120,11 @@ function generateProducerOrders(doc, retailOutlet){
         } else {
             _.each(distributorOutlets, function (o) {
                 let order = _.find(pendingOrders, function (order) {
-                    return canServiceOrder(order, o)
-                })
+                    return await (canServiceOrder(order, o, retailOutlet))
+                });
                 if (order){
-                    pendingOrders = _.reject(pendingOrders, order)
+                    let index = _.indexOf(pendingOrders, order);
+                    pendingOrders = pendingOrders.splice(index, 1);
                     orders.push(order)
                 }
             }) 
@@ -131,39 +132,11 @@ function generateProducerOrders(doc, retailOutlet){
         if (pendingOrders.length > 0) {
           _.each(pendingOrders, function (order) {
               order.hasError = true;
-              order.errorMessage = ""
+              order.errorMessage = "No distributor outlet found";
+              orders.push(order)
           })
         }
     }
-
-
-
-    let coverageProfiles = [];
-    let unAssignedProducerIds = [];
-
-
-
-   /* if (unAssignedProducerIds && unAssignedProducerIds.length > 0){
-        let itemsPerProducer = {};
-        await(_.each(unAssignedProducerIds, function (producerId) {
-            let items = _.where(doc.items, {producerId: producerId});
-            var METERS_PER_MILE = 1609.34;
-            let lng = retailOutlet.location.longitude;
-            let lat = retailOutlet.location.latitude;
-            let distributorOutlets  = await (Core.db().distributoroutlets.find({ geoSearch: { $nearSphere: { $geometry: { type: "Point", coordinates: [ lng, lat ] },
-                $maxDistance: 5 * METERS_PER_MILE } } }).toArray());
-            let companyIds = _.pluck(distributorOutlets, "distributorId");
-            let companies = await (Core.db().companies.find({_id: {$in: companyIds}, tenantId: {$exists: true}}).toArray());
-            let tenantIds = _.pluck(companies, "tenantId");
-            _.each(distributorOutlets, function (d) {
-                let company = await(Core.db().companies.findOne({_id: d.distributorId}));
-                if (company && company.tenantId){
-
-                }
-            })
-
-        }))
-    }*/
 
     return orders
 }
@@ -292,7 +265,13 @@ Array.min = function( array ){
 
 function canServiceAll(outlet, orders, retailOutlet) {
     let canProcess = true;
-    let orderQty = _.reduce( _.pluck(orders.items, "quantity"), function(memo, num){ return memo + num; }, 0);
+    let quantity = [];
+    await (_.each(orders, function (o) {
+        await (_.each(o.items, function (i) {
+            quantity.push(i.quantity)
+        }))
+    }));
+    let orderQty = _.reduce(quantity, function(memo, num){ return memo + num; }, 0);
     let lng = retailOutlet.location.longitude;
     let lat = retailOutlet.location.latitude;
     if (orderQty < outlet.moq){
@@ -300,16 +279,16 @@ function canServiceAll(outlet, orders, retailOutlet) {
     }
     let company = Core.db.companies.findOne({_id: outlet.distributorId});
     if (company && company.tenantId){
-        let nearestLocation = Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
+        let nearestLocation = await (Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
         { $near :
         {
             $geometry: { type: "Point",  coordinates: [ lng, lat ] }
         }
-        }});
-        _.each(orders, function (order) {
+        }}));
+        await (_.each(orders, function (order) {
             if (!canProcess) return;
-            _.each(order.items, function (i) {
-                     let item = Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode});
+            await (_.each(order.items, function (i) {
+                     let item = await (Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode}));
                      if (item){
                          if (_.isArray(item.locations) && item.locations.length > 0 && nearestLocation) {
                              let location = _.findWhere(variant.locations, {locationId: nearestLocation._id});
@@ -322,7 +301,38 @@ function canServiceAll(outlet, orders, retailOutlet) {
                      } else {
                          canProcess = false
                      }
-            })
-        })
+            }))
+        }))
     }
+    return canProcess
+}
+
+function canServiceOrder(order, outlet, retailOutlet) {
+    let canProcess = true;
+    let orderQty = _.reduce( _.pluck(order.items, "quantity"), function(memo, num){ return memo + num; }, 0);
+    let lng = retailOutlet.location.longitude;
+    let lat = retailOutlet.location.latitude;
+    let company = await (Core.db.companies.findOne({_id: outlet.distributorId}));
+    if (company && company.tenantId){
+        await (_.each(order.items, function (i) {
+            let item = await (Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode}));
+            if (item){
+                if (_.isArray(item.locations) && item.locations.length > 0 && nearestLocation) {
+                    let location = await (_.findWhere(variant.locations, {locationId: nearestLocation._id}));
+                    if (!(location && location.stockOnHand >= i.quantity)){
+                        canProcess = false
+                    }
+                } else {
+                    canProcess = false
+                }
+            } else {
+                canProcess = false
+            }
+        }));
+        if (orderQty < outlet.moq){
+            moq.push(outlet.moq);
+            canProcess = false
+        }
+    }
+    return canProcess
 }
