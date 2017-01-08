@@ -3,53 +3,7 @@
  */
 "use strict";
 
-// test order
-/*
-let order = {
-    "retailerId": "23jk4Z3dpmcPoMakJ",
-    "shippingAddressId": "p5a34hmtLwc7wXJCf",
-    "billingAddressId": "p5a34hmtLwc7wXJCf",
-    "currency": {
-        "iso": "NGN",
-        "symbol": "₦"
-    },
-    "contactName": "Chief Chukwuma Okezue",
-    "contactPhone": "8023368786",
-    "contactEmail": "abc@gmail.com",
-    "isPickup": true,
-    "status": "open",
-    "paymentStatus": "unpaid",
-    "invoiceStatus": "pending",
-    "shippingStatus": "pending",
-    "createdAt": "2016-12-08T09:46:08Z",
-    "issuedAt": "2016-12-08T09:46:08Z",
-    "updatedAt": "2016-12-08T09:46:08Z",
-    "taxRate": 5,
-    "subtotal": 260000,
-    "taxes": 13000,
-    "total": 273000,
-    "orderType": 20,
-    "items": [{
-        "price": 10000,
-        "quantity": 20,
-        "masterCode": "20",
-        "status": "open"
-    }, {
-        "price": 2000,
-        "quantity": 30,
-        "masterCode": "20",
-        "status": "open"
-    }, {
-        "price": 2000,
-        "quantity": 5,
-        "masterCode": "20",
-        "status": "open",
-        "isPromo": true
-    }],
-    "priceListCode": "10"
-};
-*/
-
+var moq = [];
 
 var _ = require("underscore");
 var async = require('asyncawait/async');
@@ -107,147 +61,111 @@ console.log('Magic happens on port ' + port);
 
 
 
-function generateProducerOrders(doc, retailOutlet, save){
-    doc.items = await(assignProducerIds(doc.items))
-    let producerIds = _.uniq(_.pluck(doc.items, "producerId"));
-    let coverageProfiles = [];
-    let orders = []
+function generateProducerOrders(doc, retailOutlet){
+    doc.items = await(assignProducerIds(doc.items));
+    let items = _.groupBy(doc.items, "producerId");
+    let producerIds = Object.keys(items);
+    let initialOrders = [];
+    let coverageProducerIds =  _.pluck(retailOutlet.coverageProfile, "producerId");
+    let orders = [];
+    let pendingOrders = []
 
-    if (producerIds && producerIds.length > 0){
-        if (retailOutlet.coverageProfile && retailOutlet.coverageProfile.length > 0){
-           await(_.each(producerIds, function (p) {
-                let coverageProfile =  _.findWhere(retailOutlet.coverageProfile, {producerId: p});
-                if (coverageProfile){
-                    coverageProfiles.push(coverageProfile)
-                }
-            }))
-        }
-        let itemsPerProducer = {};
-        if (coverageProfiles.length > 0){
-           await(_.each(coverageProfiles, function (p) {
-                itemsPerProducer[p.producerId] = {};
-                itemsPerProducer[p.producerId].items = _.where(doc.items, {producerId: p.producerId});
-                itemsPerProducer[p.producerId].defaultDistributorId = p.defaultDistributorId;
-                itemsPerProducer[p.producerId].defaultSupplyLocationId = p.defaultSupplyLocationId;
-                itemsPerProducer[p.producerId].producerId = p.producerId;
-                itemsPerProducer[p.producerId].assigneeId = p.defaultSalesRepId;
-            }))
-        }
-        let allProducers = Object.keys(itemsPerProducer);
-        await(_.each(allProducers, function(producer){
-            let  assignedProducer = itemsPerProducer[producer];
-            let globalOrderNumber;
-            let producerCompany = await(Core.db().companies.findOne({_id: assignedProducer.producerId}));
 
-            let company = await(Core.db().companies.findOne({_id: assignedProducer.defaultDistributorId}));
-            let tenantId = company.tenantId;
-            let finalOrder;
-            let producerItems = await (assignVariantIds(assignedProducer.items, producerCompany.tenantId));
-            if (producerCompany && producerCompany.tenantId) {
-                let order = await(Core.prepareProducerOrder(producerItems, company._id, producerCompany.tenantId));
-                order.issuedAt = doc.issuedAt;
-                order.currency = doc.currency;
-                finalOrder = await (prepareFinalOrder(order, producerCompany.tenantId));
-                await (orders.push(finalOrder));
+    await (_.each(producerIds, function (id) {
+        let orderItems = items[id];
+        let order = {};
+        order.producerId = id;
+        order.items = orderItems;
+        initialOrders.push(order)
+    }));
+
+    if (_.every(initialOrders, function (o) {
+            return _.contains(coverageProducerIds, o.producerId)
+        })) {
+        await (_.each(initialOrders, function (order) {
+            let finalOrder = await (setupOrder(order, retailOutlet, doc));
+            orders.push(finalOrder)
+        }))
+
+    } else if (_.some(initialOrders, function (o) {
+            return _.contains(coverageProducerIds, o.producerId)
+        })) {
+        await (_.each(initialOrders, function (order) {
+            let coverageProfile =  _.findWhere(retailOutlet.coverageProfile, {producerId: order.producerId});
+            if (coverageProfile){
+                let finalOrder = await (setupOrder(order, retailOutlet, doc));
+                orders.push(finalOrder)
             } else {
-                //find the nearest possible distributor
-            }
-
-            if (save){
-                if (canAutoAssignOrder(assignedProducer.defaultDistributorId,
-                        assignedProducer.items, assignedProducer.defaultSupplyLocationId)){
-                        let newDistributorOrder;
-                        //Code to save the order
-                        /*
-                         Partitioner.bindGroup(tenantId, function () {
-                         let orderItems =  assignVariantIds(finalOrder.items);
-                         let distributorOrder = prepareOrder(doc, orderItems, assignedProducer.defaultSupplyLocationId);
-                         if (assignedProducer.assigneeId){
-                         distributorOrder.assigneeId = assignedProducer.assigneeId
-                         }
-                         check(distributorOrder, Core.Schemas.Order);
-                         let user = Meteor.users.findOne();
-                         try {
-                         check(distributorOrder, Core.Schemas.Order);
-                         } catch (e) {
-                         Core.Log.error(`There's invalid data in your order. Please correct and retry ${e}`);
-                         return callback(e, null);
-                         }
-                         let distributorOrderId =  Orders.insert(distributorOrder);
-                         newdistributorOrder = Orders.findOne(distributorOrderId);
-                         globalOrderNumber = newdistributorOrder.globalOrderNumber
-                         });
-                         Partitioner.bindGroup(producerCompany.tenantId, function () {
-                         if (producerCompany && producerCompany.tenantId) {
-                         let indirectOrder = {};
-                         let customer = Customers.findOne({companyId: assignedProducer.defaultDistributorId });
-                         indirectOrder.retailerId = doc.retailerId;
-                         indirectOrder.customerId = customer ? customer._id : null;
-                         indirectOrder.amount = newdistributorOrder.total;
-                         indirectOrder.orderNumber = globalOrderNumber;
-                         indirectOrder.orderId = newdistributorOrder._id;
-                         indirectOrder.status = newdistributorOrder.status;
-                         indirectOrder.createdAt = newdistributorOrder.createdAt;
-                         indirectOrder.currency = newdistributorOrder.currency;
-                         IndirectOrders.insert(indirectOrder)
-                         }
-                         })*/
-                } else {
-                    /*Partitioner.bindGroup(producerCompany.tenantId, function () {
-                     let company = Companies.findOne(assignedProducer.defaultDistributorId);
-                     let producerItems =  assignVariantIds(assignedProducer.items);
-                     let order = prepareProducerOrder(producerItems, company._id);
-                     order.issuedAt = doc.issuedAt;
-                     order.currency = doc.currency;
-                     let defaultUserId = Meteor.users.findOne()._id
-                     let finalOrder = prepareFinalOrder(order);
-
-                     let unassignedOrder = {};
-                     let items = [];
-                     unassignedOrder.retailerId = doc.retailerId;
-                     unassignedOrder.retailOrderId = doc._id;
-                     unassignedOrder.retailOrderNumber = doc.retailOrderNumber;
-                     unassignedOrder.priceListCode = doc.priceListCode;
-                     unassignedOrder.createdAt = new Date;
-                     unassignedOrder.salesLocationId = assignedProducer.defaultSupplyLocationId;
-                     unassignedOrder.customerId = assignedProducer.defaultDistributorId;
-                     unassignedOrder.currency = doc.currency;
-                     unassignedOrder.paymentReference = doc.paymentReference;
-
-                     _.each(finalOrder.items, function (i) {
-                     delete  i._id;
-                     delete i.producerId;
-                     delete  i.originItemId;
-                     if (!i.taxRateOverride){
-                     i.taxRateOverride = getTaxRate(defaultUserId)
-                     }
-                     if (!i.discount){
-                     i.discount = 0;
-                     }
-                     if (i.isPromo){
-                     i.price = 0;
-                     i.taxRateOverride = 0
-                     }
-                     i.quantity = Number(i.quantity) //ensure quantity is a number for promo items
-
-                     let variant = ProductVariants.findOne({masterCode: i.masterCode});
-                     i.variantId = variant._id;
-                     items.push(i)
-                     });
-                     unassignedOrder.items = items;
-                     UnassignedOrders.insert(unassignedOrder)
-                     })*/
-                }
+                let finalOrder = await (setupDistributorOrder(order, retailOutlet, doc));
+                pendingOrders.push(finalOrder)
             }
         }));
-        if (!save){
-            return orders
+    } else if (pendingOrders.length > 0){
+        let totalItemsQuantity = 0;
+        var METERS_PER_MILE = 1609.34;
+        let lng = retailOutlet.location.longitude;
+        let lat = retailOutlet.location.latitude;
+        let distributorOutlets  = await (Core.db().distributoroutlets.find({ geoSearch: { $nearSphere: { $geometry: { type: "Point", coordinates: [ lng, lat ] },
+            $maxDistance: 5 * METERS_PER_MILE } } }).toArray());
+
+        let outlet;
+        outlet = _.find(distributorOutlets, function (o) {
+            return canServiceAll(o, pendingOrders, retailOutlet)
+        });
+        if (outlet){
+            _.each(pendingOrders, function (order) {
+                orders.push(order)
+            });
+            pendingOrders = []
+        } else {
+            _.each(distributorOutlets, function (o) {
+                let order = _.find(pendingOrders, function (order) {
+                    return canServiceOrder(order, o)
+                })
+                if (order){
+                    pendingOrders = _.reject(pendingOrders, order)
+                    orders.push(order)
+                }
+            }) 
         }
-        //return callback(null, "all transactions processed");
-    } else {
-         //console.log("The selected items have no producer on our system")
-        //return callback("The selected items have no producer on our system", null);
+        if (pendingOrders.length > 0) {
+          _.each(pendingOrders, function (order) {
+              order.hasError = true;
+              order.errorMessage = ""
+          })
+        }
     }
+
+
+
+    let coverageProfiles = [];
+    let unAssignedProducerIds = [];
+
+
+
+   /* if (unAssignedProducerIds && unAssignedProducerIds.length > 0){
+        let itemsPerProducer = {};
+        await(_.each(unAssignedProducerIds, function (producerId) {
+            let items = _.where(doc.items, {producerId: producerId});
+            var METERS_PER_MILE = 1609.34;
+            let lng = retailOutlet.location.longitude;
+            let lat = retailOutlet.location.latitude;
+            let distributorOutlets  = await (Core.db().distributoroutlets.find({ geoSearch: { $nearSphere: { $geometry: { type: "Point", coordinates: [ lng, lat ] },
+                $maxDistance: 5 * METERS_PER_MILE } } }).toArray());
+            let companyIds = _.pluck(distributorOutlets, "distributorId");
+            let companies = await (Core.db().companies.find({_id: {$in: companyIds}, tenantId: {$exists: true}}).toArray());
+            let tenantIds = _.pluck(companies, "tenantId");
+            _.each(distributorOutlets, function (d) {
+                let company = await(Core.db().companies.findOne({_id: d.distributorId}));
+                if (company && company.tenantId){
+
+                }
+            })
+
+        }))
+    }*/
+
+    return orders
 }
 
 
@@ -306,7 +224,43 @@ function assignProducerIds(items){
     return items;
 }
 
+function setupOrder(order, retailOutlet, doc) {
+    let coverageProfile =  _.findWhere(retailOutlet.coverageProfile, {producerId: order.producerId});
+    let producerCompany = await(Core.db().companies.findOne({_id: order.producerId}));
+    let company = await(Core.db().companies.findOne({_id: coverageProfile.defaultDistributorId}));
+    let tenantId = company.tenantId;
+    let finalOrder;
+    let producerItems = await (assignVariantIds(order.items, producerCompany.tenantId));
+    let previewOrder = await(Core.prepareProducerOrder(producerItems, company._id, producerCompany.tenantId));
+    previewOrder.issuedAt = doc.issuedAt;
+    previewOrder.currency = doc.currency;
+    finalOrder = await (prepareFinalOrder(previewOrder, producerCompany.tenantId));
+    finalOrder.discounts = finalOrder.discounts ? finalOrder.discounts : 0;
+    finalOrder.taxes = await(Core.getTaxes(finalOrder));
+    finalOrder.subTotal = await (Core.getSubTotal(finalOrder));
+    finalOrder.total = await (Core.getTotal(finalOrder));
+    return finalOrder
+}
 
+function setupDistributorOrder(order, retailOutlet, doc) {
+    let producerCompany = await(Core.db().companies.findOne({_id: order.producerId}));
+    let previewOrder;
+    if (producerCompany.tenantId){
+        let producerItems = await (assignVariantIds(order.items, producerCompany.tenantId));
+        previewOrder = await(Core.prepareOrder(producerItems, retailOutlet, producerCompany.tenantId));
+        previewOrder.issuedAt = doc.issuedAt;
+        previewOrder.currency = doc.currency;
+        previewOrder.discounts = previewOrder.discounts ? previewOrder.discounts : 0;
+        previewOrder.taxes = await(Core.getTaxes(previewOrder));
+        previewOrder.subTotal = await (Core.getSubTotal(previewOrder));
+        previewOrder.total = await (Core.getTotal(previewOrder));
+    } else {
+        previewOrder = order
+    }
+    return previewOrder;
+    // Apply taxrate to order based on found distributor
+
+}
 
 function prepareFinalOrder(order, tenantId){
     let finalOrder;
@@ -331,3 +285,44 @@ function prepareFinalOrder(order, tenantId){
 };*/
 
 
+
+Array.min = function( array ){
+    return Math.min.apply( Math, array );
+};
+
+function canServiceAll(outlet, orders, retailOutlet) {
+    let canProcess = true;
+    let orderQty = _.reduce( _.pluck(orders.items, "quantity"), function(memo, num){ return memo + num; }, 0);
+    let lng = retailOutlet.location.longitude;
+    let lat = retailOutlet.location.latitude;
+    if (orderQty < outlet.moq){
+        return false
+    }
+    let company = Core.db.companies.findOne({_id: outlet.distributorId});
+    if (company && company.tenantId){
+        let nearestLocation = Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
+        { $near :
+        {
+            $geometry: { type: "Point",  coordinates: [ lng, lat ] }
+        }
+        }});
+        _.each(orders, function (order) {
+            if (!canProcess) return;
+            _.each(order.items, function (i) {
+                     let item = Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode});
+                     if (item){
+                         if (_.isArray(item.locations) && item.locations.length > 0 && nearestLocation) {
+                             let location = _.findWhere(variant.locations, {locationId: nearestLocation._id});
+                             if (!(location && location.stockOnHand >= i.quantity)){
+                                 canProcess = false
+                             }
+                         } else {
+                             canProcess = false
+                         }
+                     } else {
+                         canProcess = false
+                     }
+            })
+        })
+    }
+}

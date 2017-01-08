@@ -10,8 +10,8 @@ var _ = require("underscore");
 
 _.extend(Core, {
     db: function () {
-        return pmongo('mongodb://localhost:27017/general', ['companies', 'customers', 'orders', 'users',
-            'retailoutlets', "masterproductvariants", "masterproducts", "productvariants", "taxes", "tenants", "promotions"]);
+        return pmongo('mongodb://localhost:27017/general', ['companies', 'customers', 'orders', 'users', "distributoroutlets",
+            'retailoutlets', "masterproductvariants", "masterproducts", "productvariants", "taxes", "tenants", "promotions", "locations"]);
     },
     generateRetailerOrder: function (doc) {
         let order = {};
@@ -437,6 +437,30 @@ _.extend(Core, {
         order.assigneeId = customer.defaultAssigneeId;
         order.priceListCode = customer.defaultPriceListCode;
 
+        order.items = items;
+        order.taxRate = Core.getTaxRate(tenantId);
+        order.userId = defaultUserId;
+        return order
+    },
+    prepareOrder: function (items, retailOutlet, tenantId) {
+        let defaultUserId = await(Core.db().users.findOne({group: tenantId})._id);
+        await(_.each(items, function (i) {
+            delete  i._id;
+            delete i.producerId;
+            if (!i.taxRateOverride){
+                i.taxRateOverride = await (Core.getTaxRate(tenantId))
+            }
+            i.discount = 0
+
+        }));
+        let order = {};
+        var METERS_PER_MILE = 1609.34;
+        let lng = retailOutlet.location.longitude;
+        let lat = retailOutlet.location.latitude;
+        let salesLocation  = await (Core.db().locations.findOne({ geoSearch: { $nearSphere: { $geometry: { type: "Point", coordinates: [ lng, lat ] },
+            $maxDistance: 5 * METERS_PER_MILE } }, _groupId: tenantId }));
+        order.salesLocationId = salesLocation ? salesLocation._id : "";
+        
         order.items = items;
         order.taxRate = Core.getTaxRate(tenantId);
         order.userId = defaultUserId;
