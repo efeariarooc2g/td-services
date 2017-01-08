@@ -119,9 +119,9 @@ function generateProducerOrders(doc, retailOutlet){
             pendingOrders = []
         } else {
             _.each(distributorOutlets, function (o) {
-                let order = _.find(pendingOrders, function (order) {
-                    return await (canServiceOrder(order, o, retailOutlet))
-                });
+                let order = await (_.find(pendingOrders, function (order) {
+                    return await (canServiceOrder(order, o, retailOutlet, pendingOrders))
+                }));
                 if (order){
                     let index = _.findLastIndex(pendingOrders, order);
                     pendingOrders = pendingOrders.splice(index, 1);
@@ -130,9 +130,18 @@ function generateProducerOrders(doc, retailOutlet){
             }) 
         }
         if (pendingOrders.length > 0) {
-          _.each(pendingOrders, function (order) {
+          _.each(pendingOrders, function (order, index) {
+              let oOrder = _.find(moq, function (qty) {
+                  return qty.index === index
+              });
+              if (oOrder){
+                  let oQty = _.findWhere(moq, {index: index})
+                  let minQty = _.pluck(oQty, 'moq').min()
+                  order.errorMessage = "Minimum order quantity is " + minQty;
+              } else {
+                  order.errorMessage = "No distributor outlet found";
+              }
               order.hasError = true;
-              order.errorMessage = "No distributor outlet found";
               orders.push(order)
           })
         }
@@ -152,37 +161,6 @@ function assignVariantIds(items, tenantId) {
     return allItems
 }
 
-
-function canAutoAssignOrder(distributorId, items, locationId) {
-    let autoAssign = true;
-    let company = await (Core.db().companies.findOne({_id: distributorId}));
-    if (company && company.tenantId){
-        let tenantId= company.tenantId;
-        _.each(items, function (item) {
-            if (autoAssign === false) return;
-            let variant = await(Core.db().productvariants.findOne({masterCode: item.masterCode, _groupId: tenantId}));
-            if (variant){
-                if (_.isArray(variant.locations) && variant.locations.length > 0 ) {
-                    let location =  await(_.findWhere(variant.locations, {locationId: locationId}));
-                    if (!(location && location.stockOnHand > item.quantity)){
-                        console.log("no stock for location");
-                        autoAssign = false
-                    }
-                } else {
-                    console.log("Empty locations array on item for", item.masterCode);
-                    //autoAssign = false
-                }
-            } else {
-                console.log("item not found");
-                autoAssign = false
-            }
-        })
-    } else {
-        console.log("company not found");
-        autoAssign = false
-    }
-    return autoAssign
-}
 
 function assignProducerIds(items){
     await(_.each(items, function (i) {
@@ -303,11 +281,13 @@ function canServiceAll(outlet, orders, retailOutlet) {
                      }
             }))
         }))
+    } else {
+        canProcess = false
     }
     return canProcess
 }
 
-function canServiceOrder(order, outlet, retailOutlet) {
+function canServiceOrder(order, outlet, retailOutlet, orders) {
     let canProcess = true;
     let orderQty = _.reduce( _.pluck(order.items, "quantity"), function(memo, num){ return memo + num; }, 0);
     let lng = retailOutlet.location.longitude;
@@ -329,10 +309,12 @@ function canServiceOrder(order, outlet, retailOutlet) {
                 canProcess = false
             }
         }));
-        if (orderQty < outlet.moq){
-            moq.push(outlet.moq);
+        if (orderQty < outlet.moq && canProcess){
+            moq.push({index: _.findLastIndex(orders, order), moq: outlet.moq});
             canProcess = false
         }
+    } else {
+        canProcess = false
     }
     return canProcess
 }
