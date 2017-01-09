@@ -229,13 +229,6 @@ function prepareFinalOrder(order, tenantId){
 }
 
 
-/*function isExcludedOrderType(order, excludedOrderTypes) {
-    if (excludedOrderTypes && typeof excludedOrderTypes === "object") {
-        return order.orderType && _.indexOf(excludedOrderTypes, order.orderType) > -1 ? true : false;
-    } else return false;
-};*/
-
-
 
 Array.min = function( array ){
     return Math.min.apply( Math, array );
