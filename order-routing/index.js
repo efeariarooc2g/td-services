@@ -40,7 +40,7 @@ router.get('/', function(req, res) {
 
 });
 
-router.route('/orders')
+router.route('/v2/preview')
     .post(function(req, res) {
         processOrder(req.body).then(function (result) {
             res.json(result);
@@ -100,7 +100,9 @@ function generateProducerOrders(doc, retailOutlet){
                 pendingOrders.push(finalOrder)
             }
         }));
-    } else if (pendingOrders.length > 0){
+    }
+
+    if (pendingOrders.length > 0){
         let totalItemsQuantity = 0;
         var METERS_PER_MILE = 1609.34;
         let lng = retailOutlet.location.longitude;
@@ -127,26 +129,25 @@ function generateProducerOrders(doc, retailOutlet){
                     pendingOrders = pendingOrders.splice(index, 1);
                     orders.push(order)
                 }
-            }) 
+            })
         }
         if (pendingOrders.length > 0) {
-          _.each(pendingOrders, function (order, index) {
-              let oOrder = _.find(moq, function (qty) {
-                  return qty.index === index
-              });
-              if (oOrder){
-                  let oQty = _.findWhere(moq, {index: index})
-                  let minQty = _.pluck(oQty, 'moq').min()
-                  order.errorMessage = "Minimum order quantity is " + minQty;
-              } else {
-                  order.errorMessage = "No distributor outlet found";
-              }
-              order.hasError = true;
-              orders.push(order)
-          })
+            _.each(pendingOrders, function (order, index) {
+                let oOrder = _.find(moq, function (qty) {
+                    return qty.index === index
+                });
+                if (oOrder){
+                    let oQty = _.findWhere(moq, {index: index})
+                    let minQty = _.pluck(oQty, 'moq').min()
+                    order.errorMessage = "Minimum order quantity is " + minQty;
+                } else {
+                    order.errorMessage = "No distributor outlet found";
+                }
+                order.hasError = true;
+                orders.push(order)
+            })
         }
     }
-
     return orders
 }
 
@@ -248,7 +249,7 @@ function canServiceAll(outlet, orders, retailOutlet) {
     if (orderQty < outlet.moq){
         return false
     }
-    let company = Core.db.companies.findOne({_id: outlet.distributorId});
+    let company = await (Core.db.companies.findOne({_id: outlet.distributorId}));
     if (company && company.tenantId){
         let nearestLocation = await (Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
         { $near :
