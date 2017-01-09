@@ -138,7 +138,7 @@ function generateProducerOrders(doc, retailOutlet){
                 });
                 if (oOrder){
                     let oQty = _.findWhere(moq, {index: index})
-                    let minQty = _.pluck(oQty, 'moq').min()
+                    let minQty = Math.min.apply( Math, _.pluck(oQty, 'moq') );
                     order.errorMessage = "Minimum order quantity is " + minQty;
                 } else {
                     order.errorMessage = "No distributor outlet found";
@@ -231,9 +231,6 @@ function prepareFinalOrder(order, tenantId){
 
 
 
-Array.min = function( array ){
-    return Math.min.apply( Math, array );
-};
 
 function canServiceAll(outlet, orders, retailOutlet) {
     let canProcess = true;
