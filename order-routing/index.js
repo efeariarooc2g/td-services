@@ -16,8 +16,8 @@ var Core = require("./core");
 
 
 var processOrder = async (function(order) {
-   let doc = await (Core.generateRetailerOrder(order));
-   let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
+    let doc = await (Core.generateRetailerOrder(order));
+    let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
     if (retailOutlet){
         return await (generateProducerOrders(doc, retailOutlet))
     } else {
@@ -25,6 +25,15 @@ var processOrder = async (function(order) {
     }
 });
 
+var postOrders = async (function (orders) {
+    await (_.each(orders, function (order) {
+       if (order.producerId){
+           await (Core.saveProducerOrder(order))
+       } else if (order.distributorId) {
+           Core.saveDistributorOrder(order)
+       }
+    }))
+});
 
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -43,7 +52,19 @@ router.get('/', function(req, res) {
 router.route('/v2/preview')
     .post(function(req, res) {
         processOrder(req.body).then(function (result) {
-            res.json(result);
+            let orderObject = {};
+            orderObject.rawOrder = req.body;
+            orderObject.orders = result;
+            res.json(orderObject);
+        });
+    });
+
+router.route('/v2/orders')
+    .post(function(req, res) {
+        processOrder(req.body).then(function (result) {
+            postOrders(result).then(function (result) {
+                res.json(result);
+            });
         });
     });
 
@@ -68,7 +89,7 @@ function generateProducerOrders(doc, retailOutlet){
     let initialOrders = [];
     let coverageProducerIds =  _.pluck(retailOutlet.coverageProfile, "producerId");
     let orders = [];
-    let pendingOrders = []
+    let pendingOrders = [];
 
 
     await (_.each(producerIds, function (id) {
@@ -84,6 +105,8 @@ function generateProducerOrders(doc, retailOutlet){
         })) {
         await (_.each(initialOrders, function (order) {
             let finalOrder = await (setupOrder(order, retailOutlet, doc));
+            finalOrder.producerId = order.producerId;
+            finalOrder.retailerId = retailOutlet.retailerId;
             orders.push(finalOrder)
         }))
 
@@ -94,21 +117,24 @@ function generateProducerOrders(doc, retailOutlet){
             let coverageProfile =  _.findWhere(retailOutlet.coverageProfile, {producerId: order.producerId});
             if (coverageProfile){
                 let finalOrder = await (setupOrder(order, retailOutlet, doc));
+                finalOrder.producerId = order.producerId;
+                finalOrder.retailerId = retailOutlet.retailerId;
                 orders.push(finalOrder)
             } else {
                 let finalOrder = await (setupDistributorOrder(order, retailOutlet, doc));
+                finalOrder.producerId = order.producerId;
+                finalOrder.retailerId = retailOutlet.retailerId;
                 pendingOrders.push(finalOrder)
             }
         }));
     }
 
     if (pendingOrders.length > 0){
-        let totalItemsQuantity = 0;
         var METERS_PER_MILE = 1609.34;
         let lng = retailOutlet.location.longitude;
         let lat = retailOutlet.location.latitude;
         let distributorOutlets  = await (Core.db().distributoroutlets.find({ geoSearch: { $nearSphere: { $geometry: { type: "Point", coordinates: [ lng, lat ] },
-            $maxDistance: 5 * METERS_PER_MILE } } }).toArray());
+            $maxDistance: 10 * METERS_PER_MILE } } }).toArray());
 
         let outlet;
         outlet = await (_.find(distributorOutlets, function (o) {
@@ -137,7 +163,7 @@ function generateProducerOrders(doc, retailOutlet){
                     return qty.index === index
                 });
                 if (oOrder){
-                    let oQty = _.findWhere(moq, {index: index})
+                    let oQty = _.findWhere(moq, {index: index});
                     let minQty = Math.min.apply( Math, _.pluck(oQty, 'moq') );
                     order.errorMessage = "Minimum order quantity is " + minQty;
                 } else {
