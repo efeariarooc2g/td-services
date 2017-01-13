@@ -46,7 +46,7 @@ var postOrders = async (function (orders) {
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-var port = process.env.PORT || 3000;        // set our port
+var port = process.env.PORT || 4000;        // set our port
 
 // ROUTES FOR OUR API
 // =============================================================================

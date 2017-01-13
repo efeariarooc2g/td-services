@@ -13,7 +13,7 @@ _.extend(Core, {
     db: function () {
         return pmongo('mongodb://localhost:27017/general', ['companies', 'customers', 'orders', 'users', "distributoroutlets",
             'retailoutlets', "masterproductvariants", "masterproducts", "productvariants", "taxes", "tenants", "promotions",
-            "locations", "customers", "ordertypes", "documentnumbers", "retailorders", "retailtransactions", "unassignedorders"]);
+            "locations", "customers", "ordertypes", "documentnumbers", "retailorders", "retailtransactions", "unassignedorders", "indirectorders"]);
     },
     generateRetailerOrder: function (doc) {
         let order = {};
@@ -494,13 +494,12 @@ _.extend(Core, {
                 newOrder.orderNumber = await (Core.schemaNextSeqNumber('order', tenantId));
                 newOrder.globalOrderNumber = `${company.country ? company.country : "NG"}-${company.companyNumber}-${newOrder.orderNumber}`;
                 newOrder.paymentReference = transaction.transactionNumber;
-                let retailTransaction;
-                newOrder = await (Core.db().orders.insert(order));
+                newOrder = await (Core.db().orders.insert(newOrder));
                 newOrder.producerId = coverageProfile.producerId;
                 newOrder.distributorId = coverageProfile.defaultDistributorId;
                 let retailOrder = await (Core.generateRetailOrder(newOrder, retailerId));
                 retailOrder = await (Core.db().retailorders.insert(retailOrder));
-                await (Core.saveIndirectOrder(retailOrder, coverageProfile));
+                await (Core.saveIndirectOrder(newOrder, retailOutlet));
                 return retailOrder
             }  else {
                 let company = await (Core.db().companies.findOne({_id: coverageProfile.producerId}));
@@ -515,6 +514,7 @@ _.extend(Core, {
                     unConfirmedOrder.retailerId = retailerId;
                     unConfirmedOrder.retailOrderNumber = retailOrder.retailOrderNumber;
                     unConfirmedOrder.retailOrderId = retailOrder._id;
+                    unConfirmedOrder.retailerName = retailOutlet.name;
                     await (Core.db().unassignedorders.insert(unConfirmedOrder));
                     return retailOrder
                 }
@@ -522,20 +522,24 @@ _.extend(Core, {
         }
         //Core.db().orders.insert(order)
     },
-    saveIndirectOrder: function (order, coverageProfile) {
+    saveIndirectOrder: function (order, retailOutlet) {
         let indirectOrder = {};
         let producerCompany = await (Core.db().companies.findOne(order.producerId));
         if (producerCompany && producerCompany.tenantId){
             let tenantId = producerCompany.tenantId;
-            let customer = Core.db().customers.findOne({companyId: coverageProfile.defaultDistributorId, _groupId: tenantId});
-            indirectOrder.retailerId = order.retailerId;
+            let customer = await (Core.db().customers.findOne({companyId: order.distributorId, _groupId: tenantId}));
+            indirectOrder.retailerId = retailOutlet.retailerId;
             indirectOrder.customerId = customer ? customer._id : null;
             indirectOrder.amount = order.total;
-            indirectOrder.orderNumber = order.orderNumber;
+            indirectOrder.orderNumber = order.globalOrderNumber;
             indirectOrder.orderId = order._id;
             indirectOrder.status = 'open';
             indirectOrder.createdAt = order.createdAt;
             indirectOrder.currency = order.currency;
+            indirectOrder._id = Random.id();
+            indirectOrder.retailerName = retailOutlet.name;
+            indirectOrder.customerName = customer.name;
+            indirectOrder.customerNumber = customer.customerNumber;
             indirectOrder._groupId = tenantId;
             await (Core.db().indirectorders.insert(indirectOrder))
         }
@@ -657,15 +661,16 @@ _.extend(Core, {
             i.quantity = Number(i.quantity); //ensure quantity is a number for promo items
         }));
         let order = {};
-        let customerId, defaultOrderType;
-        let customer = await (Core.db().customers.findOne({companyId: coverageProfile.retailerId, _groupId: tenantId}));
+        let customerId, defaultOrderType, customer;
+         customer = await (Core.db().customers.findOne({companyId: coverageProfile.retailerId, _groupId: tenantId}));
         if  (customer){
             customerId = customer._id;
         } else {
             let company = await (Core.db().companies.findOne({_id: coverageProfile.retailerId}));
-            let customerDoc = await (prepareCustomer(company, coverageProfile));
+            let customerDoc = await (prepareCustomer(company, coverageProfile, tenantId));
             customerDoc._groupId = tenantId;
-            customerId = await (Core.db().customers.insert(customerDoc))
+            customer = await (Core.db().customers.insert(customerDoc));
+            customerId = customer._id
         }
         if (customerId){
             let newCustomerUpdate = await(Core.db().customers.findOne({_id: customerId}));
@@ -699,6 +704,8 @@ _.extend(Core, {
         }
         order.currency = doc.currency;
         order.customerId = customerId;
+        order.customerName = customer ? customer.name : "" ;
+        order.customerNumber = customer ? customer.customerNumber : ""
         order.salesLocationId = locationId;
         order.stockLocationId = locationId;
         order.appliedCredits = 0;
@@ -780,35 +787,6 @@ _.extend(Core, {
         }));
         let order = {};
         let customerId, defaultOrderType;
-        let distributorCompany = await (Core.db().companies.findOne({_id: coverageProfile.defaultDistributorId}));
-        if (distributorCompany && distributorCompany.tenantId){
-            let customer = await (Core.db().customers.findOne({companyId: coverageProfile.retailerId, _groupId: distributorCompany.tenantId}));
-            if  (customer){
-                customerId = customer._id;
-            } else {
-                let company = await (Core.db().companies.findOne({_id: coverageProfile.retailerId}));
-                let customerDoc = await (prepareCustomer(company, coverageProfile));
-                customerDoc._groupId = distributorCompany.tenantId;
-                customerId = await (Core.db().customers.insert(customerDoc))
-            }
-            if (customerId){
-                let newCustomerUpdate = await(Core.db().customers.findOne({_id: customerId}));
-                if (newCustomerUpdate && _.isArray(newCustomerUpdate.addressBook) && newCustomerUpdate.addressBook.length > 0){
-                    await (prepareAddress(order, newCustomerUpdate.addressBook))
-                } else {
-                    let retailOutLet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
-                    if (retailOutLet && _.isArray(retailOutLet.addressBook) && retailOutLet.addressBook.length > 0){
-                        await (_.each(retailOutLet.addressBook, function (addressBook) {
-                            delete addressBook._id;
-                            addressBook._id = Random.id()
-                        }));
-                        await (Core.db().customers.update({_id: customerId}, {$set: {addressBook: retailOutLet.addressBook}}));
-                        let updatedCustomer = await (Core.db().customers.findOne({_id: customerId}));
-                        await (prepareAddress(order, updatedCustomer.addressBook))
-                    }
-                }
-            }
-        }
         let orderType = await(Core.db().ordertypes.findOne({name: "Field", _groupId: tenantId}));
         if (orderType) {
             defaultOrderType = orderType
@@ -822,13 +800,16 @@ _.extend(Core, {
             let orderTypeId = await(Core.db().ordertypes.insert({name: "Field", _groupId: tenantId, code: newCode}));
             defaultOrderType = await(Core.db().ordertypes.findOne({_id: orderTypeId, _groupId: tenantId}))
         }
+        let customer = await (Core.db().customers.findOne({_id: coverageProfile.defaultDistributorId}))
         order.currency = doc.currency;
-        order.customerId = customerId;
+        order.customerId = coverageProfile.defaultDistributorId;
+        order.customerName = customer ? customer.name : "" ;
+        order.customerNumber = customer ? customer.customerNumber : ""
         order.salesLocationId = coverageProfile.defaultSupplyLocationId;
         order.stockLocationId = coverageProfile.defaultSupplyLocationId;
         order.shippingAddressId =
         order.appliedCredits = 0;
-        order.status = "open";
+        order.status = "unassigned";
         order.discounts = 0;
         order.shippingCosts = 0;
         order.paymentStatus = "unpaid";
@@ -985,7 +966,7 @@ function getCummulativeOrder(rule, customerId, excludedOrderTypes) {
     }).toArray())
 }
 
-function  prepareCustomer(company, coverageProfile) {
+function  prepareCustomer(company, coverageProfile, tenantId) {
     let customer = {};
     _.each(company.addressBook, function (address) {
         delete address._id
@@ -1001,7 +982,8 @@ function  prepareCustomer(company, coverageProfile) {
     customer.customerType = "retail";
     customer.defaultAssigneeId = coverageProfile.defaultSalesRepId;
     customer.userId = "Ext";
-    customer._id = Random.id()
+    customer._id = Random.id();
+    customer.customerNumber = await (Core.schemaNextSeqNumber('customer', tenantId));
     return customer
 }
 
