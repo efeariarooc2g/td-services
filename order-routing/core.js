@@ -549,7 +549,7 @@ _.extend(Core, {
           items.push(i)
       }));
       let retailOrder = {};
-        retailOrder._id = Random.id()
+        retailOrder._id = Random.id();
         retailOrder.orderNumber= order.globalOrderNumber;
         retailOrder.paymentReference = order.paymentReference;
         retailOrder.orderId = order._id;
@@ -561,7 +561,9 @@ _.extend(Core, {
         retailOrder.distributorId = order.distributorId;
         retailOrder.retailOrderNumber = Core.schemaNextGlobalSeqNumber("retail_order");
         retailOrder.producerId = order.producerId;
-        retailOrder.items = items
+        retailOrder.items = items;
+        retailOrder.paymentStatus = "unPaid";
+        retailOrder.status = "open";
         return retailOrder
     },
     saveDistributorOrder: function (order, transaction) {
