@@ -13,7 +13,7 @@ _.extend(Core, {
     db: function () {
         return pmongo('mongodb://localhost:27017/general', ['companies', 'customers', 'orders', 'users', "distributoroutlets",
             'retailoutlets', "masterproductvariants", "masterproducts", "productvariants", "taxes", "tenants", "promotions",
-            "locations", "customers", "ordertypes", "documentnumbers"]);
+            "locations", "customers", "ordertypes", "documentnumbers", "retailorders", "retailtransactions", "unassignedorders"]);
     },
     generateRetailerOrder: function (doc) {
         let order = {};
@@ -468,57 +468,141 @@ _.extend(Core, {
         order.userId = defaultUserId;
         return order
     },
-    saveProducerOrder: function (order) {
-        delete order.hasError;
+    saveProducerOrder: function (order, transaction) {
+        delete order.isPending;
         delete order.hasPromotions;
         delete order.tenantId;
-        let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: order.retailerId}));
+        let retailerId = order.retailerId;
+        let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: retailerId}));
         let coverageProfile = await (_.find(retailOutlet.coverageProfile, function (profile) {
            return profile.producerId === order.producerId
         }));
         delete order.producerId;
         delete order.retailerId;
         if (coverageProfile){
+            coverageProfile.retailerId = retailOutlet.retailerId;
             if (await (Core.canAutoAssignOrder(coverageProfile.defaultDistributorId, order.items,
                     coverageProfile.defaultSupplyLocationId))){
                 let company = await (Core.db().companies.findOne({_id: coverageProfile.defaultDistributorId}));
                 let tenantId = company.tenantId;
-                coverageProfile.retailerId = retailOutlet.retailerId;
                 coverageProfile.addressBook = retailOutlet.addressBook;
-                coverageProfile._groupId = tenantId
-                order = await (Core.normalizeOrder(order, coverageProfile.defaultSupplyLocationId, tenantId, coverageProfile));
+                coverageProfile._groupId = tenantId;
+                let newOrder = await (Core.normalizeOrder(order, coverageProfile.defaultSupplyLocationId, tenantId, coverageProfile));
                 if (coverageProfile.defaultSalesRepId){
-                    order.assigneeId = coverageProfile.defaultSalesRepId
+                    newOrder.assigneeId = coverageProfile.defaultSalesRepId
                 }
-                order.orderNumber = await (Core.schemaNextSeqNumber('order', tenantId));
-                order.globalOrderNumber = `${company.country ? company.country : "NG"}-${company.companyNumber}-${order.orderNumber}`
-                let newOrder = await (Core.db().orders.insert(order));
-                console.log(newOrder);
-                //let newOrder = await (Core.db().orders.findOne(orderId));
-                //let globalOrderNumber = newOrder.globalOrderNumber;
-
-                /*if (producerCompany && producerCompany.tenantId) {
-                    let indirectOrder = {};
-                    let customer = Core.db().customers.findOne({companyId: coverageProfile.defaultDistributorId });
-                    indirectOrder.retailerId = doc.retailerId;
-                    indirectOrder.customerId = customer ? customer._id : null;
-                    indirectOrder.amount = newdistributorOrder.total;
-                    indirectOrder.orderNumber = globalOrderNumber;
-                    indirectOrder.orderId = newdistributorOrder._id;
-                    indirectOrder.status = newdistributorOrder.status;
-                    indirectOrder.createdAt = newdistributorOrder.createdAt;
-                    indirectOrder.currency = newdistributorOrder.currency;
-                    IndirectOrders.insert(indirectOrder)
-                }*/
-            }   
+                newOrder.orderNumber = await (Core.schemaNextSeqNumber('order', tenantId));
+                newOrder.globalOrderNumber = `${company.country ? company.country : "NG"}-${company.companyNumber}-${newOrder.orderNumber}`;
+                newOrder.paymentReference = transaction.transactionNumber;
+                let retailTransaction;
+                newOrder = await (Core.db().orders.insert(order));
+                newOrder.producerId = coverageProfile.producerId;
+                newOrder.distributorId = coverageProfile.defaultDistributorId;
+                let retailOrder = await (Core.generateRetailOrder(newOrder, retailerId));
+                retailOrder = await (Core.db().retailorders.insert(retailOrder));
+                await (Core.saveIndirectOrder(retailOrder, coverageProfile));
+                return retailOrder
+            }  else {
+                let company = await (Core.db().companies.findOne({_id: coverageProfile.producerId}));
+                if (company && company.tenantId){
+                    let tenantId = company.tenantId;
+                    let unConfirmedOrder = await (Core.prepareUnassignedOrder(order, tenantId, coverageProfile));
+                    let retailOrder = Core.generateRetailOrder(order, retailerId);
+                    retailOrder.producerId = coverageProfile.producerId;
+                    retailOrder.paymentReference = transaction.transactionNumber;
+                    retailOrder = await (Core.db().retailorders.insert(retailOrder));
+                    unConfirmedOrder.paymentReference = transaction.transactionNumber;
+                    unConfirmedOrder.retailerId = retailerId;
+                    unConfirmedOrder.retailOrderNumber = retailOrder.retailOrderNumber;
+                    unConfirmedOrder.retailOrderId = retailOrder._id;
+                    await (Core.db().unassignedorders.insert(unConfirmedOrder));
+                    return retailOrder
+                }
+            }
         }
         //Core.db().orders.insert(order)
     },
-    saveDistributorOrder: function (order, retailOutlet) {
-        delete order.producerId;
-        delete order.hasError;
+    saveIndirectOrder: function (order, coverageProfile) {
+        let indirectOrder = {};
+        let producerCompany = await (Core.db().companies.findOne(order.producerId));
+        if (producerCompany && producerCompany.tenantId){
+            let tenantId = producerCompany.tenantId;
+            let customer = Core.db().customers.findOne({companyId: coverageProfile.defaultDistributorId, _groupId: tenantId});
+            indirectOrder.retailerId = order.retailerId;
+            indirectOrder.customerId = customer ? customer._id : null;
+            indirectOrder.amount = order.total;
+            indirectOrder.orderNumber = order.orderNumber;
+            indirectOrder.orderId = order._id;
+            indirectOrder.status = 'open';
+            indirectOrder.createdAt = order.createdAt;
+            indirectOrder.currency = order.currency;
+            indirectOrder._groupId = tenantId;
+            await (Core.db().indirectorders.insert(indirectOrder))
+        }
+    },
+    generateRetailOrder: function (order, retailerId) {
+      let items = [];
+      await (_.each(order.items, function (i) {
+          let variant = await (Core.db().productvariants.findOne({_id: i.variantId}));
+          i.masterCode = variant.masterCode;
+          delete i.variantId;
+          items.push(i)
+      }));
+      let retailOrder = {};
+        retailOrder._id = Random.id()
+        retailOrder.orderNumber= order.globalOrderNumber;
+        retailOrder.paymentReference = order.paymentReference;
+        retailOrder.orderId = order._id;
+        retailOrder.subTotal = order.subTotal;
+        retailOrder.taxRate = order.taxRate;
+        retailOrder.retailerId = retailerId;
+        retailOrder.total = order.total;
+        retailOrder.taxes = order.taxes;
+        retailOrder.distributorId = order.distributorId;
+        retailOrder.retailOrderNumber = Core.schemaNextGlobalSeqNumber("retail_order");
+        retailOrder.producerId = order.producerId;
+        retailOrder.items = items
+        return retailOrder
+    },
+    saveDistributorOrder: function (order, transaction) {
+        delete order.isPending;
         delete order.hasPromotions;
         delete order.tenantId;
+        let retailerId = order.retailerId;
+        let producerId =  order.producerId;
+        let distributorId = order.distributorId;
+        let items = order.items;
+        delete order.producerId;
+        let retailOutlet = await (Core.db().retailoutlets.findOne({retailerId: retailerId}));
+        delete order.retailerId;
+        delete order.distributorId;
+
+        let company = await (Core.db().companies.findOne({_id: distributorId}));
+        let tenantId = company.tenantId;
+        let coverageProfile = {};
+        coverageProfile.addressBook = retailOutlet.addressBook;
+        coverageProfile._groupId = tenantId;
+        let location = await (Core.db().locations.findOne({
+            geoSearch:
+            { $near :
+            {
+                $geometry: { type: "Point",  coordinates: retailOutlet.geoSearch.coordinates }
+            }
+            }, groupId: tenantId
+        }));
+        order = await (Core.normalizeOrder(order, location._id, tenantId, coverageProfile));
+
+        order.orderNumber = await (Core.schemaNextSeqNumber('order', tenantId));
+        order.globalOrderNumber = `${company.country ? company.country : "NG"}-${company.companyNumber}-${order.orderNumber}`;
+        order.paymentReference = transaction.transactionNumber;
+        let newOrder = await (Core.db().orders.insert(order));
+        newOrder.producerId = producerId;
+        newOrder.distributorId = distributorId;
+        let retailOrder = await (Core.generateRetailOrder(newOrder, retailerId));
+        retailOrder.items = items;
+        retailOrder = await (Core.db().retailorders.insert(retailOrder));
+        await (Core.saveIndirectOrder(retailOrder, coverageProfile));
+        return retailOrder
     },
     canAutoAssignOrder: function (distributorId, items, locationId) {
         let autoAssign = true;
@@ -536,7 +620,7 @@ _.extend(Core, {
                         }
                     } else {
                         console.log("Empty locations array on item for", item.masterCode);
-                        //autoAssign = false
+                        autoAssign = false
                     }
                 } else {
                     console.log("item not found");
@@ -548,9 +632,6 @@ _.extend(Core, {
             autoAssign = false
         }
         return autoAssign
-    },
-    assignVariantIds: function (order, tenantId) {
-
     },
     normalizeOrder: function (doc, locationId, tenantId, coverageProfile) {
         let defaultUserId = await (Core.db().users.findOne({group: tenantId}));
@@ -592,7 +673,8 @@ _.extend(Core, {
                 let retailOutLet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
                 if (retailOutLet && _.isArray(retailOutLet.addressBook) && retailOutLet.addressBook.length > 0){
                     await (_.each(retailOutLet.addressBook, function (addressBook) {
-                        delete addressBook._id
+                        delete addressBook._id;
+                        addressBook._id = Random.id()
                     }));
                     await (Core.db().customers.update({_id: customerId}, {$set: {addressBook: retailOutLet.addressBook}}));
                     let updatedCustomer = await (Core.db().customers.findOne({_id: customerId}));
@@ -604,8 +686,14 @@ _.extend(Core, {
         if (orderType){
             defaultOrderType = orderType
         } else {
-            let orderTypeId = await (Core.db().ordertypes.insert({name: "Field", _groupId: tenantId}));
-            defaultOrderType = await (Core.db().ordertypes.findOne({_id: orderTypeId, _groupId: tenantId}))
+            let oType = await (Core.db().ordertypes.findOne({_groupId: tenantId}, {
+                sort: {
+                    code: -1
+                }
+            }));
+            let newCode = oType ? oType.code + 10 : 10;
+            let orderTypeId = await(Core.db().ordertypes.insert({name: "Field", _groupId: tenantId, code: newCode}));
+            defaultOrderType = await(Core.db().ordertypes.findOne({_id: orderTypeId, _groupId: tenantId}))
         }
         order.currency = doc.currency;
         order.customerId = customerId;
@@ -627,11 +715,15 @@ _.extend(Core, {
         order.contactPhone = doc.contactPhone;
         order.priceListCode = doc.priceListCode;
         order.items = doc.items;
-        //order.paymentReference = doc.reference;
+        order.rawOrder = doc.rawOrder;
         order.userId = defaultUserId ? defaultUserId._id : "";
         order.createdAt = new Date;
         order.taxRate = doc.taxRate;
         order._groupId = tenantId;
+        order.subTotal = Core.getSubTotal(doc);
+        order.taxes = Core.getTaxes(doc);
+        order.total = Core.getTotal(doc);
+        order._id = Random.id();
         return order
     },
     schemaNextSeqNumber: function (documentType, tenantId) {
@@ -641,6 +733,125 @@ _.extend(Core, {
         }));
         return docNumber && docNumber.value ? docNumber.value.nextSeqNumber : null;
     },
+    generateTransaction: function (orders) {
+        let oTotal = await (_.pluck(orders, "total"));
+        let currency;
+        if (orders[0].currency){
+            currency = {};
+            currency.iso = orders[0].currency.iso;
+            currency.symbol = orders[0].currency.symbol
+        }
+        return {
+            "_id": Random.id(),
+            "amount": _.reduce(oTotal, function(memo, num){ return memo + num; }, 0),
+            "currency": currency,
+            "transactionNumber": `TDC-${Core.schemaNextGlobalSeqNumber('retail_transaction')}`
+        }
+    },
+    schemaNextGlobalSeqNumber: function (documentType) {
+        let docNumber = await (Core.db().documentnumbers.findAndModify({
+            query: {'documentType': documentType },
+            update: { $inc: { nextSeqNumber: 1 } }
+        }));
+        return docNumber && docNumber.value ? docNumber.value.nextSeqNumber : null;
+    },
+    prepareUnassignedOrder: function (doc, tenantId, coverageProfile) {
+        let defaultUserId = await(Core.db().users.findOne({group: tenantId}));
+        await(_.each(doc.items, function (i) {
+            let variant = await(Core.db().productvariants.findOne({masterCode: i.masterCode, _groupId: tenantId}));
+            i.variantId = variant._id;
+            delete i.masterCode;
+            delete  i._id;
+            delete i.originItemId;
+            delete i.producerId;
+            if (!i.taxRateOverride) {
+                i.taxRateOverride = Core.getTaxRate(tenantId)
+            }
+            if (!i.discount) {
+                i.discount = 0;
+            }
+            if (i.isPromo) {
+                i.price = 0;
+                i.taxRateOverride = 0
+            }
+            i.quantity = Number(i.quantity); //ensure quantity is a number for promo items
+        }));
+        let order = {};
+        let customerId, defaultOrderType;
+        let distributorCompany = await (Core.db().companies.findOne({_id: coverageProfile.defaultDistributorId}));
+        if (distributorCompany && distributorCompany.tenantId){
+            let customer = await (Core.db().customers.findOne({companyId: coverageProfile.retailerId, _groupId: distributorCompany.tenantId}));
+            if  (customer){
+                customerId = customer._id;
+            } else {
+                let company = await (Core.db().companies.findOne({_id: coverageProfile.retailerId}));
+                let customerDoc = await (prepareCustomer(company, coverageProfile));
+                customerDoc._groupId = distributorCompany.tenantId;
+                customerId = await (Core.db().customers.insert(customerDoc))
+            }
+            if (customerId){
+                let newCustomerUpdate = await(Core.db().customers.findOne({_id: customerId}));
+                if (newCustomerUpdate && _.isArray(newCustomerUpdate.addressBook) && newCustomerUpdate.addressBook.length > 0){
+                    await (prepareAddress(order, newCustomerUpdate.addressBook))
+                } else {
+                    let retailOutLet = await (Core.db().retailoutlets.findOne({retailerId: doc.retailerId}));
+                    if (retailOutLet && _.isArray(retailOutLet.addressBook) && retailOutLet.addressBook.length > 0){
+                        await (_.each(retailOutLet.addressBook, function (addressBook) {
+                            delete addressBook._id;
+                            addressBook._id = Random.id()
+                        }));
+                        await (Core.db().customers.update({_id: customerId}, {$set: {addressBook: retailOutLet.addressBook}}));
+                        let updatedCustomer = await (Core.db().customers.findOne({_id: customerId}));
+                        await (prepareAddress(order, updatedCustomer.addressBook))
+                    }
+                }
+            }
+        }
+        let orderType = await(Core.db().ordertypes.findOne({name: "Field", _groupId: tenantId}));
+        if (orderType) {
+            defaultOrderType = orderType
+        } else {
+            let oType = await (Core.db().ordertypes.findOne({_groupId: tenantId}, {
+                sort: {
+                    code: -1
+                }
+            }));
+            let newCode = oType ? oType.code + 10 : 10;
+            let orderTypeId = await(Core.db().ordertypes.insert({name: "Field", _groupId: tenantId, code: newCode}));
+            defaultOrderType = await(Core.db().ordertypes.findOne({_id: orderTypeId, _groupId: tenantId}))
+        }
+        order.currency = doc.currency;
+        order.customerId = customerId;
+        order.salesLocationId = coverageProfile.defaultSupplyLocationId;
+        order.stockLocationId = coverageProfile.defaultSupplyLocationId;
+        order.shippingAddressId =
+        order.appliedCredits = 0;
+        order.status = "open";
+        order.discounts = 0;
+        order.shippingCosts = 0;
+        order.paymentStatus = "unpaid";
+        order.invoiceStatus = "pending";
+        order.shippingStatus = "pending";
+        order.taxType = "exclusive";
+        order.issuedAt = new Date;
+        order.shipAt = new Date;
+        order.taxRate = doc.taxRate;
+        order.orderType = defaultOrderType ? defaultOrderType.code : 0;
+        order.contactEmail = doc.contactEmail;
+        order.contactPhone = doc.contactPhone;
+        order.priceListCode = doc.priceListCode;
+        order.items = doc.items;
+        order.userId = defaultUserId ? defaultUserId._id : "";
+        order.createdAt = new Date;
+        order.taxRate = doc.taxRate;
+        order._groupId = tenantId;
+        order.subTotal = Core.getSubTotal(doc);
+        order.taxes = Core.getTaxes(doc);
+        order.total = Core.getTotal(doc);
+        order.rawOrder = doc.rawOrder;
+        order._id = Random.id();
+        return order
+    }
 });
 
 function testRuleOperator(left, right, operator) {

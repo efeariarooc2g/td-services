@@ -26,13 +26,20 @@ var processOrder = async (function(order) {
 });
 
 var postOrders = async (function (orders) {
+    let transaction = await (Core.generateTransaction(orders));
+    transaction = await(Core.db().retailtransactions.insert(transaction));
+    let retailOrders = []
+    orders = await (_.where(orders,  {isPending: false}));
     await (_.each(orders, function (order) {
-       if (order.producerId){
-           await (Core.saveProducerOrder(order))
+       if (order.hasCoverageProfile){
+          let rOrder =  await (Core.saveProducerOrder(order, transaction));
+          retailOrders.push(rOrder) 
        } else if (order.distributorId) {
-           Core.saveDistributorOrder(order)
+          let rOrder = aait (Core.saveDistributorOrder(order))
+           retailOrders.push(rOrder)
        }
-    }))
+    }));
+    return retailOrders
 });
 
 
@@ -106,6 +113,7 @@ function generateProducerOrders(doc, retailOutlet){
         await (_.each(initialOrders, function (order) {
             let finalOrder = await (setupOrder(order, retailOutlet, doc));
             finalOrder.producerId = order.producerId;
+            finalOrder.hasCoverageProfile = true;
             finalOrder.retailerId = retailOutlet.retailerId;
             orders.push(finalOrder)
         }))
@@ -118,7 +126,9 @@ function generateProducerOrders(doc, retailOutlet){
             if (coverageProfile){
                 let finalOrder = await (setupOrder(order, retailOutlet, doc));
                 finalOrder.producerId = order.producerId;
+                finalOrder.hasCoverageProfile = true;
                 finalOrder.retailerId = retailOutlet.retailerId;
+                finalOrder.isPending = false;
                 orders.push(finalOrder)
             } else {
                 let finalOrder = await (setupDistributorOrder(order, retailOutlet, doc));
@@ -142,6 +152,7 @@ function generateProducerOrders(doc, retailOutlet){
         }));
         if (outlet){
             _.each(pendingOrders, function (order) {
+                order.isPending = false;
                 orders.push(order)
             });
             pendingOrders = []
@@ -153,6 +164,7 @@ function generateProducerOrders(doc, retailOutlet){
                 if (order){
                     let index = _.findLastIndex(pendingOrders, order);
                     pendingOrders = pendingOrders.splice(index, 1);
+                    order.isPending = false;
                     orders.push(order)
                 }
             })
@@ -169,7 +181,7 @@ function generateProducerOrders(doc, retailOutlet){
                 } else {
                     order.errorMessage = "No distributor outlet found";
                 }
-                order.hasError = true;
+                order.isPending = true;
                 orders.push(order)
             })
         }
