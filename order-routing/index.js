@@ -56,7 +56,7 @@ router.get('/', function(req, res) {
 
 });
 
-router.route('/v2/preview')
+router.route('/v2/orders/preview')
     .post(function(req, res) {
         processOrder(req.body).then(function (result) {
             let orderObject = {};
@@ -284,7 +284,7 @@ function canServiceAll(outlet, orders, retailOutlet) {
     if (orderQty < outlet.moq){
         return false
     }
-    let company = await (Core.db.companies.findOne({_id: outlet.distributorId}));
+    let company = await (Core.db().companies.findOne({_id: outlet.distributorId}));
     if (company && company.tenantId){
         let nearestLocation = await (Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
         { $near :
@@ -298,7 +298,7 @@ function canServiceAll(outlet, orders, retailOutlet) {
                      let item = await (Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode}));
                      if (item){
                          if (_.isArray(item.locations) && item.locations.length > 0 && nearestLocation) {
-                             let location = _.findWhere(variant.locations, {locationId: nearestLocation._id});
+                             let location = _.findWhere(item.locations, {locationId: nearestLocation._id});
                              if (!(location && location.stockOnHand >= i.quantity)){
                                  canProcess = false
                              }
@@ -321,13 +321,19 @@ function canServiceOrder(order, outlet, retailOutlet, orders) {
     let orderQty = _.reduce( _.pluck(order.items, "quantity"), function(memo, num){ return memo + num; }, 0);
     let lng = retailOutlet.location.longitude;
     let lat = retailOutlet.location.latitude;
-    let company = await (Core.db.companies.findOne({_id: outlet.distributorId}));
+    let company = await (Core.db().companies.findOne({_id: outlet.distributorId}));
     if (company && company.tenantId){
+        let nearestLocation = await (Core.db().locations.findOne({_groupId: company.tenantId, geoSearch:
+        { $near :
+        {
+            $geometry: { type: "Point",  coordinates: [ lng, lat ] }
+        }
+        }}));
         await (_.each(order.items, function (i) {
             let item = await (Core.db().productvariants.findOne({_groupId: company.tenantId, masterCode: i.masterCode}));
             if (item){
                 if (_.isArray(item.locations) && item.locations.length > 0 && nearestLocation) {
-                    let location = await (_.findWhere(variant.locations, {locationId: nearestLocation._id}));
+                    let location = await (_.findWhere(item.locations, {locationId: nearestLocation._id}));
                     if (!(location && location.stockOnHand >= i.quantity)){
                         canProcess = false
                     }
