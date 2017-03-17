@@ -140,7 +140,7 @@ exports.handler = (event, context, callback) => {
                     const params = {
                         Message: customer.hasOwnProperty('clickType') ? 'A new Lead has been found with serial Number ' + event.serialNumber + ' and added to the New Leads queue for further processing'
                             : 'Order Request from ' + customer.outletBusinessName + ', Phone Number: ' + customer.phoneNumber + ', Address: ' + customer.coordinates.formatted_address + '. Request has been added to queue for further processing',
-                        Subject: customer.hasOwnProperty('clickType') ? 'New Lead Detected with Serial Number' + event.serialNumber : 'New Order Request from' + customer.outletBusinessName,
+                        Subject: customer.hasOwnProperty('clickType') ? 'New Lead Detected with Serial Number ' + event.serialNumber : 'New Order Request from' + customer.outletBusinessName,
                         TopicArn: topicArn,
                     };
                     // result will go to function callback
