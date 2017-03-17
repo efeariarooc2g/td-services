@@ -116,7 +116,9 @@ exports.handler = (event, context, callback) => {
 
         getCustomerDetails({iot_number: event.serialNumber}) //will use event.serialNumber TODO change me
             .then(data => {
+                console.log(JSON.stringify(data));
                 if(data.data.message === 'Nothing found'){
+                    customer = event;
                     return CreateQueue(LeedsQueueName);
                 } else {
                     customer = data;
