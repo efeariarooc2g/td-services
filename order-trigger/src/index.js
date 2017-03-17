@@ -66,7 +66,7 @@ const apiUrl = 'https://td-central.herokuapp.com/api/v2/retailer/?';
 exports.handler = (event, context, callback) => {
     console.log('Received event:', event);
     //handle only post request
-    if(event.hasOwnProperty(sim)){ // triggered by api gateway
+    if(event.hasOwnProperty('sim')){ // triggered by api gateway
         let responseCode = 200;
         const responseBody = {
             message: "Request received"
@@ -112,7 +112,7 @@ exports.handler = (event, context, callback) => {
                 };
                 context.succeed(response);
         };
-    } else if(event.hasOwnProperty(clickType)) {  //triggered by aws iot
+    } else if(event.hasOwnProperty('clickType')) {  //triggered by aws iot
 
         getCustomerDetails({iot_number: event.serialNumber}) //will use event.serialNumber TODO change me
             .then(data => {
