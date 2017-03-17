@@ -85,7 +85,7 @@ exports.handler = (event, context, callback) => {
                 //process request
                 getCustomerDetails({phone_number: event.body.sim.id}) //will use event.body.sim.id TODO change me
                     .then(data => {
-                        customer = data;
+                        customer = JSON.parse(data);
                         return CreateQueue(QueueName)
                     })
                     .then(data => {
@@ -116,38 +116,36 @@ exports.handler = (event, context, callback) => {
 
         getCustomerDetails({iot_number: event.serialNumber}) //will use event.serialNumber TODO change me
             .then(data => {
-                if(data && data.hasOwnProperty('data') && data.data.hasOwnProperty(message)){
+                const response = JSON.parse(data);
+                if(response && response.hasOwnProperty('data') && response.data.hasOwnProperty(message)){
                     customer = event;
                     return CreateQueue(LeedsQueueName);
                 } else {
-                    customer = data;
-                    // create/get topic
-                    createTopic('aws-iot-button-sns-topic', (err, topicArn) => {
-                        if (err) {
-                            return callback(err);
-                        }
-                        console.log(`Publishing to topic ${topicArn}`);
-                        // publish message
-                        const params = {
-                            Message: customer.hasOwnProperty('clickType') ? `A new Lead has been found with serial Number ${event.serialNumber} and added to the New Leads queue for further processing`
-                                : `Order Request from ${customer.outletBusinessName}, Phone Number: ${customer.phoneNumber}, Address: ${customer.coordinates.formatted_address}. Request has been added to queue for further processing`,
-                            Subject: customer.hasOwnProperty('clickType') ? `New Lead Detected with Serial Number ${event.serialNumber}` : `New Order Request from ${customer.outletBusinessName}`,
-                            TopicArn: topicArn,
-                        };
-                        // result will go to function callback
-                        SNS.publish(params, callback);
-                    });
+                    customer = response;
                     return CreateQueue(QueueName)
                 };
                 //if customer is found, crate queue for orderRequest else create queue for Leads request
-
-
             })
             .then(data => {
                 return sendtoQueue(data.QueueUrl, customer ? JSON.stringify(customer): JSON.stringify(event));
             })
             .then(() => {
-                callback(null,'success');
+                // create/get topic
+                createTopic('aws-iot-button-sns-topic', (err, topicArn) => {
+                    if (err) {
+                        return callback(err);
+                    }
+                    console.log(`Publishing to topic ${topicArn}`);
+                    // publish message
+                    const params = {
+                        Message: customer.hasOwnProperty('clickType') ? 'A new Lead has been found with serial Number ' + event.serialNumber + ' and added to the New Leads queue for further processing'
+                            : 'Order Request from ' + customer.outletBusinessName + ', Phone Number: ' + customer.phoneNumber + ', Address: ' + customer.coordinates.formatted_address + '. Request has been added to queue for further processing',
+                        Subject: customer.hasOwnProperty('clickType') ? 'New Lead Detected with Serial Number' + event.serialNumber : 'New Order Request from' + customer.outletBusinessName,
+                        TopicArn: topicArn,
+                    };
+                    // result will go to function callback
+                    SNS.publish(params, callback);
+                });
             })
             .catch(err => {
                 console.log(err);
