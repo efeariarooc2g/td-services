@@ -129,7 +129,6 @@ exports.handler = (event, context, callback) => {
 
             })
             .then(data => {
-                console.log(data);
                 return sendtoQueue(data.QueueUrl, customer ? JSON.stringify(customer): JSON.stringify(event));
             })
             .then(() => {
@@ -148,7 +147,7 @@ exports.handler = (event, context, callback) => {
             // publish message
             const params = {
                 Message: customer.hasOwnProperty('clickType') ? `A new Lead has been found with serial Number ${event.serialNumber} and added to the New Leads queue for further processing`
-                    : `Order Request from ${customer.outletBusinessName}, Phone Number: ${customer.phoneNumber}, Address: ${customer.company.addressBook.address1}. Request has been added to queue for further processing`,
+                    : `Order Request from ${customer.outletBusinessName}, Phone Number: ${customer.phoneNumber}. Request has been added to queue for further processing`,
                 Subject: customer.hasOwnProperty('clickType') ? `New Lead Detected with Serial Number ${event.serialNumber}` : `New Order Request from ${customer.outletBusinessName}`,
                 TopicArn: topicArn,
             };
