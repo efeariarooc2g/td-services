@@ -38,6 +38,8 @@
   },
   "dependencies": {
     "aws-sdk": "^2.3.13",
+    "bluebird": "^3.4.7",
+    "redis": "^2.6.4",
     "request": "^2.79.0",
     "request-promise": "^4.1.1"
   },

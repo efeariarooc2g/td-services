@@ -1,0 +1,112 @@
+{
+  "_id": "fHW8dyWJLyjTxFQZ5",
+  "retailerId": "23jk4Z3dpmcPoMakJ",
+  "outletBusinessName": "Park'N'Shop Supermarket/Stores",
+  "outletTypeId": "uKnzDiFJxKQog7vmL",
+  "locationType": "residential",
+  "seClass": "high",
+  "companyAddressId": "Jr2taMvZJMmmYrEL5",
+  "coordinates": {
+    "longitude": 3.43657239999993,
+    "latitude": 6.4331551,
+    "formatted_address": "Etim Inyang Cres, Lagos, Nigeria",
+    "address": "Etim Inyang Cres, Lagos, Nigeria"
+  },
+  "outletType": "Medium Super Market",
+  "isChain": false,
+  "geoSearch": {
+    "type": "Point",
+    "coordinates": [
+      3.43657239999993,
+      6.4331551
+    ]
+  },
+  "iotNumber": "G030JF0582620VH3",
+  "phoneNumber": "08100990852",
+  "company": {
+    "_id": "23jk4Z3dpmcPoMakJ",
+    "status": "active",
+    "customerNumber": "100690",
+    "name": "Park'N'Shop Supermarket/Stores",
+    "blocked": false,
+    "description": "PARK'N'SHOP SUPERMARKET/STORES",
+    "originCustomerId": "100690",
+    "title": " ",
+    "currency": {
+      "iso": "NGN",
+      "symbol": "₦"
+    },
+    "addressBook": [
+      {
+        "company": "Park'N'Shop Supermarket/Stores",
+        "fullName": "Mr. George",
+        "address1": "97 Aba/PHC ExpressWay",
+        "address2": "97 Aba/PHC ExpressWay",
+        "city": "River State.",
+        "state": "River State.",
+        "postal": "",
+        "country": "NG",
+        "phone": "",
+        "isCommercial": true,
+        "isShippingDefault": true,
+        "isBillingDefault": true,
+        "_id": "Jr2taMvZJMmmYrEL5"
+      }
+    ],
+    "url": "",
+    "direct": true,
+    "defaultDiscountRate": 15,
+    "defaultPriceListCode": "COR",
+    "defaultTaxRate": 5,
+    "updatedAt": "2017-01-25T13:58:39.905Z",
+    "createdAt": "2016-01-23T20:46:52.411Z",
+    "creditLimit": 3500000,
+    "account": {
+      "currentBalance": 0,
+      "currentDeposits": 900000,
+      "currentRebates": 500000,
+      "creditAmount": 4200000,
+      "debitAmount": 1700000,
+      "valueDate": "2016-01-11T13:46:52.411-0700"
+    },
+    "accountHistory": [
+      {
+        "currentBalance": 0,
+        "currentDeposits": 2000000,
+        "currentRebates": 500000,
+        "creditAmount": 4100000,
+        "debitAmount": 600000,
+        "valueDate": "2015-11-08T13:46:52.411-0700"
+      },
+      {
+        "currentBalance": -100,
+        "currentDeposits": 2100000,
+        "currentRebates": 500000,
+        "creditAmount": 4200000,
+        "debitAmount": 600000,
+        "valueDate": "2015-11-09T13:46:52.411-0700"
+      },
+      {
+        "currentBalance": -200,
+        "currentDeposits": 900000,
+        "currentRebates": 500000,
+        "creditAmount": 4200000,
+        "debitAmount": 1700000,
+        "valueDate": "2015-11-10T13:46:52.411-0700"
+      },
+      {
+        "currentBalance": -150,
+        "currentDeposits": 900000,
+        "currentRebates": 500000,
+        "creditAmount": 4200000,
+        "debitAmount": 1700000,
+        "valueDate": "2015-11-11T20:46:52.411Z"
+      }
+    ],
+    "groupCode": "COR",
+    "_groupId": "cKseJrK4z9CFn682C",
+    "companyType": "distributor",
+    "tenantId": "xTrd9e9fRuxrp3TXY"
+  },
+  "orders": []
+}
