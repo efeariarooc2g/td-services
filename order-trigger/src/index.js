@@ -117,7 +117,7 @@ exports.handler = (event, context, callback) => {
         getCustomerDetails({iot_number: event.serialNumber}) //will use event.serialNumber TODO change me
             .then(data => {
                 console.log(JSON.stringify(data));
-                if(data.data.message === 'Nothing found'){
+                if(data && data.hasOwnProperty('data') && data.data.hasOwnProperty(message)){
                     customer = event;
                     return CreateQueue(LeedsQueueName);
                 } else {
@@ -147,9 +147,9 @@ exports.handler = (event, context, callback) => {
             console.log(`Publishing to topic ${topicArn}`);
             // publish message
             const params = {
-                Message: customer.clickType ? `A new Lead has been found with serial Number ${event.serialNumber} and added to the New Leads queue for further processing`
+                Message: customer.hasOwnProperty(clickType) ? `A new Lead has been found with serial Number ${event.serialNumber} and added to the New Leads queue for further processing`
                     : `Order Request from ${customer.outletBusinessName}, Phone Number: ${customer.phoneNumber}, Address: ${customer.coordinates.formatted_address}. Request has been added to queue for further processing`,
-                Subject: customer.clickType ? `New Lead Detected with Serial Number ${event.serialNumber}` : `New Order Request from ${customer.outletBusinessName}`,
+                Subject: customer.hasOwnProperty(clickType) ? `New Lead Detected with Serial Number ${event.serialNumber}` : `New Order Request from ${customer.outletBusinessName}`,
                 TopicArn: topicArn,
             };
             // result will go to function callback
