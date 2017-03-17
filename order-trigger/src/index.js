@@ -117,7 +117,7 @@ exports.handler = (event, context, callback) => {
         getCustomerDetails({iot_number: event.serialNumber}) //will use event.serialNumber TODO change me
             .then(data => {
                 const response = JSON.parse(data);
-                if(response && response.hasOwnProperty('data') && response.data.hasOwnProperty(message)){
+                if(response && response.hasOwnProperty('data') && response.data.hasOwnProperty('message')){
                     customer = event;
                     return CreateQueue(LeedsQueueName);
                 } else {

@@ -32,9 +32,10 @@
         <entry file="file://$PROJECT_DIR$/src/index.js">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="345">
-              <caret line="141" column="50" lean-forward="false" selection-start-line="141" selection-start-column="50" selection-end-line="141" selection-end-column="50" />
+              <caret line="119" column="104" lean-forward="false" selection-start-line="119" selection-start-column="104" selection-end-line="119" selection-end-column="104" />
               <folding>
                 <element signature="e#1340#1366#0" expanded="true" />
+                <element signature="e#2150#3700#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -265,12 +266,12 @@
       <workItem from="1483454309443" duration="713000" />
       <workItem from="1484465390831" duration="22768000" />
       <workItem from="1489499152167" duration="855000" />
-      <workItem from="1489669501754" duration="15089000" />
+      <workItem from="1489669501754" duration="15329000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="60590000" />
+    <option name="totallyTimeSpent" value="60830000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="0" width="1680" height="1050" extended-state="0" />
@@ -313,6 +314,7 @@
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#1340#1366#0" expanded="true" />
+            <element signature="e#2150#3700#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -459,9 +461,10 @@
     <entry file="file://$PROJECT_DIR$/src/index.js">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="345">
-          <caret line="141" column="50" lean-forward="false" selection-start-line="141" selection-start-column="50" selection-end-line="141" selection-end-column="50" />
+          <caret line="119" column="104" lean-forward="false" selection-start-line="119" selection-start-column="104" selection-end-line="119" selection-end-column="104" />
           <folding>
             <element signature="e#1340#1366#0" expanded="true" />
+            <element signature="e#2150#3700#0" expanded="false" />
           </folding>
         </state>
       </provider>
