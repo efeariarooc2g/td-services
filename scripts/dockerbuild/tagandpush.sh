@@ -2,7 +2,7 @@
 if [ ! $CI ]; then
 	tag="localbuild"
 else
-	tag="$CIRCLE_BRANCH-$CIRCLE_BUILD_NUM"
+	tag="$CIRCLE_BRANCH-s$CIRCLE_BUILD_NUM"
 fi
 
 # Loop through all td images, tag and push
