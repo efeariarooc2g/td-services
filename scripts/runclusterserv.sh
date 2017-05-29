@@ -13,14 +13,14 @@ if [ "$#" -gt 2 ]; then
 fi
 
 # Set elasticurl and rabbiturl dynamically...docker-based for non-circle deployments
-elasticurl="http://localhost:9200"
-rabbiturl="amqp://localhost:5672"
+elasticurl="elasticsearch://elasticsearch:9200"
+rabbiturl="amqp://localhost"
 redishost="localhost"
 redisport="6379"
 if [ ! $CI ]; then
     if [ "$#" -gt 2 ]; then
         elasticurl="http://$3:9200"
-        rabbiturl="amqp://localhost"
+        rabbiturl="amqp://$3"
         redishost="$3"
     fi
 fi
@@ -36,6 +36,8 @@ docker run -d \
     -e ROOT_URL=$dockerhost:$2 \
     -e MONGO_URL=$mongourl/tradedepot \
     -e SEARCH_MONGO_URL=$mongourl/tradedepot \
+    -e SEARCH_MONGO_OPLOG_URL=$mongourl/tradedepot \
+    -e SEARCH_DATA_MONGO_URL=$mongourl/tradedepot \
     -e SEARCH_ELASTIC_URL=$elasticurl \
     -e CLUSTER_DISCOVERY_URL=$mongourl/cluster \
     -e CLUSTER_SERVICE=$1 \

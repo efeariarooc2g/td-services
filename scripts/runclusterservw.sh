@@ -13,16 +13,14 @@ if [ "$#" -gt 3 ]; then
 fi
 
 # Set elasticurl dynamically...docker-based for non-circle deployments
-elasticurl="http://localhost:9200"
-rabbiturl="amqp://localhost:5672"
+elasticurl="elasticsearch://elasticsearch:9200"
+rabbiturl="amqp://localhost"
 redishost="localhost"
 redisport="6379"
 if [ ! $CI ]; then
-    elasticurl="elasticsearch://elasticsearch:9200"
-    rabbiturl="amqp://localhost"
-        
     if [ "$#" -gt 3 ]; then
         elasticurl="http://$4:9200"
+        rabbiturl="amqp://$4"
         redishost="$4"
     fi
 fi

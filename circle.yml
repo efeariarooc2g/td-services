@@ -3,7 +3,6 @@ machine:
         - curl -sSL https://s3.amazonaws.com/circle-downloads/install-circleci-docker.sh | bash -s -- 1.10.0
     services:
         - docker
-        - elasticsearch
         - rabbitmq-server
         - redis
     hosts:
@@ -18,6 +17,7 @@ dependencies:
         - docker info
         - docker network create --driver bridge td_bridge # create bridge to network services 
         - scripts/runmongo.sh
+        - scripts/runelasticsearch.sh
         - scripts/buildall.sh $CIRCLE_BRANCH: # build all services
             timeout: 2400
 

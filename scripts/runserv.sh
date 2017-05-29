@@ -20,7 +20,7 @@ redisport="6379"
 if [ ! $CI ]; then
     if [ "$#" -gt 2 ]; then
         elasticurl="http://$3:9200"
-        rabbiturl="amqp://localhost"
+        rabbiturl="amqp://$3"
         redishost="$3"
     fi
 fi
