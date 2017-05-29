@@ -1,0 +1,10 @@
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title"><strong>Hello {{receiver}}</strong></h3>
+    </div>
+    <div class="panel-body no-overflow">
+        <div class="align-left">
+            {{order.customerName}} just made a payment of <b>{{formatMoneyD amount order.currency}}</b> for order {{order.orderNumber}}. You can view the payment by clicking <a href="{{ tenantUrl _groupId requestPath }}">here</a>
+        </div>
+    </div>
+</div>

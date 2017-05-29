@@ -1,0 +1,20 @@
+# Added by github generator
+.meteor/local
+.meteor/meteorite
+.meteor/dev_bundle
+
+# For npm
+node_modules/
+# npm-debug.log
+
+
+# Local workers
+**/addcluster.sh
+.idea
+
+# Local env variables
+**/env.sh
+
+# OSX DS_Store
+**/.DS_Store
+

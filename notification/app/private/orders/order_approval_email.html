@@ -1,0 +1,99 @@
+<div class="hello-block">
+    <h4>
+        Hello {{receiver}}
+    </h4>
+    <p>Order <a href="{{ tenantUrl _groupId requestPath }}">{{orderNumber}}</a> has been <b>{{approvalStatus}}</b> by {{approverFullName}}</p>
+    <p>You can find details of the order below. </p>
+</div>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title"><strong>Basic Details</strong></h3>
+    </div>
+    <div class="panel-body no-overflow">
+        <div class="pull-left align-left">
+            <strong>Order Number:</strong> {{orderNumber}}<br>
+            <strong>Order Type:</strong> {{orderTypeName}}<br>
+            <strong>Customer:</strong> {{customerNumber}} - {{customerName}}<br>
+            <strong>Sold From:</strong> {{salesLocation}} <br>
+            <strong>Sold By:</strong> {{assignTo}}
+        </div>
+
+        <div class="pull-right align-right">
+            <strong>Approval Status:</strong> <span class="text-capitalize"> {{approvalStatus}}</span> <br>
+            <strong>Order Status:</strong> <span class="text-capitalize"> {{status}}</span> <br>
+            <strong>Applied Credits:</strong> {{ formatMoney appliedCredits currency}} <br>
+            <strong>Payments:</strong> {{formatMoney payments currency}} <br>
+            <strong>TOTAL DUE:</strong> {{ formatMoney balance currency}}<br>
+        </div>
+    </div>
+</div>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title"><strong>Order summary</strong></h3>
+    </div>
+    <div class="panel-body">
+        <div class="table-responsive">
+            <table class="table table-condensed">
+                <thead>
+                <tr>
+                    <td><strong>Item</strong></td>
+                    <td class="text-right text-nowrap"><strong>Price (₦)</strong></td>
+                    <td class="text-center"><strong>Quantity</strong></td>
+                    <td class="text-center"><strong>Discount (%)</strong></td>
+                    <td class="text-right text-nowrap"><strong>Totals (₦)</strong></td>
+                </tr>
+                </thead>
+                <tbody>
+                {{#each items }}
+                    <tr>
+                        <td>{{variantInfo variantId 'name'}}</td>
+                        <td class="text-right">{{formatMoneyD price}}</td>
+                        <td class="text-center">{{quantity}}</td>
+                        <td class="text-center">{{formatNumber discount 1}}</td>
+                        <td class="text-right">{{formatMoneyD itemTotal}}</td>
+                    </tr>
+                {{/each}}
+
+                <tr>
+                    <td class="thick-line"></td>
+                    <td class="thick-line"></td>
+                    <td class="thick-line"></td>
+                    <td class="thick-line text-right text-nowrap"><strong>Additional Discounts</strong></td>
+                    <td class="thick-line text-right text-nowrap"><span class="text-danger">{{formatMoneyD discounts currency}}</span></td>
+                </tr>
+                <tr>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line text-right text-nowrap"><strong>Subtotal</strong></td>
+                    <td class="no-line text-right text-nowrap">{{formatMoneyD subTotal currency}}</td>
+                </tr>
+                <tr>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line text-right text-nowrap"><strong>Tax</strong></td>
+                    <td class="no-line text-right text-nowrap">{{formatMoneyD taxes currency}}</td>
+                </tr>
+                <tr>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line"></td>
+                    <td class="no-line text-right text-nowrap"><strong>Total</strong></td>
+                    <td class="no-line text-right text-nowrap">{{formatMoneyD total currency}}</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <tr class="footer">
+                <td>
+                    <p>
+                        Click <a href="{{ tenantUrl _groupId requestPath }}">here</a> to view
+                    </p>
+                </td>
+            </tr>
+        </div>
+    </div>
+</div>

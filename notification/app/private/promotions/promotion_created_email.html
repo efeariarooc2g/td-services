@@ -1,0 +1,18 @@
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title"><strong>Hello {{receiver}}</strong></h3>
+    </div>
+    <div class="panel-body no-overflow">
+        <div class="align-left">
+            A new promotion <a href="{{ tenantUrl _groupId requestPath }}">"{{name}}"</a> has been created and requires approval
+        </div>
+    </div>
+</div>
+
+<tr class="footer">
+    <td>
+        <p>
+            Click <a href="{{ tenantUrl _groupId requestPath }}">here</a> to view
+        </p>
+    </td>
+</tr>

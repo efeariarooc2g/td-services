@@ -1,0 +1,37 @@
+machine:
+    pre:
+        - curl -sSL https://s3.amazonaws.com/circle-downloads/install-circleci-docker.sh | bash -s -- 1.10.0
+    services:
+        - docker
+        - elasticsearch
+        - rabbitmq-server
+        - redis
+    hosts:
+        dev.example.com: 127.0.0.1
+
+dependencies:
+    cache_directories:
+       - "~/docker"
+    override:
+        - mkdir -p ~/docker
+        # - if [[ -e ~/docker/image.tar ]]; then docker load -i ~/docker/image.tar; fi
+        - docker info
+        - docker network create --driver bridge td_bridge # create bridge to network services 
+        - scripts/runmongo.sh
+        - scripts/buildall.sh $CIRCLE_BRANCH: # build all services
+            timeout: 2400
+
+test:
+    override:
+        - scripts/runclusterservw.sh log 5000 20
+        - scripts/runclusterserv.sh search 4000
+        - scripts/runserv.sh notification 6000
+        - sleep 10
+        - curl --retry 10 --retry-delay 5 -v http://localhost:4000
+
+deployment:
+    dockerhub:
+        branch: [develop, develop-r1, master, master-r1]
+        commands:
+            - docker login -e $DOCKER_EMAIL -u $DOCKER_USERNAME -p $DOCKER_PASS
+            - scripts/dockerbuild/tagandpush.sh

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "main-dev_c",
+    "image": "tradedepot/main",
+    "cpu": 512,
+    "memory": 256,
+    "links": ["string"],
+    "portMappings": [
+      {
+        "containerPort": 80,
+        "hostPort": 8080,
+        "protocol": "tcp"
+      }
+    ],
+    "essential": true,
+    "entryPoint": [],
+    "command": [],
+    "environment": [
+      {
+        "MONGO_URL": "string",
+        "value": "string"
+      }
+    ],
+    "mountPoints": [
+      {
+        "sourceVolume": "string",
+        "containerPath": "string",
+        "readOnly": true
+      }
+    ],
+    "volumesFrom": [
+      {
+        "sourceContainer": "string",
+        "readOnly": true
+      }
+    ]
+  }
+]

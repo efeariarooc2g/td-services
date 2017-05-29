@@ -1,0 +1,19 @@
+{
+  "name": "log",
+  "version": "1.0.0",
+  "description": "TDC notification service",
+  "main": "main.js",
+  "dependencies": {
+    "accounting": "^0.4.1",
+    "amqplib": "^0.4.1",
+    "hiredis": "^0.4.1",
+    "promise-redis": "0.0.5",
+    "when": "^3.7.7"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "“Onyekachi <cizukanne@c2gconsulting.com> (http://c2gconsulting.com/)",
+  "license": "ISC"
+}

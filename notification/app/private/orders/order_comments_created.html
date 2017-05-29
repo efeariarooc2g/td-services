@@ -1,0 +1,23 @@
+<div class="hello-block">
+    <h4>
+        Hello {{receiver}}
+    </h4>
+    <p>{{messageCreatedBy}} made a new comment on order {{orderNumber}}:</p>
+</div>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <h3 class="panel-title"><strong>Comment</strong></h3>
+    </div>
+    <div class="panel-body no-overflow">
+        <p class="align-left">{{{message}}}</p>
+    </div>
+</div>
+
+<tr class="footer">
+    <td>
+        <p>
+            Click <a href="{{ tenantUrl _groupId requestPath }}">here</a> to respond.
+        </p>
+    </td>
+</tr>

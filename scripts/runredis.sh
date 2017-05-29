@@ -1,0 +1,1 @@
+docker run --net=td_bridge --name redis -d -p 6379:6379 redis
