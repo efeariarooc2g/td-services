@@ -8,16 +8,7 @@ servname=${PWD##*/}
 dimage="tradedepot/$servname"
 echo "Building docker image $dimage..."
 
-# env for graphicsmagick
-gmagick="false"
-
-if [ servname == "main" ]; then
-    gmagick="true"
-fi
-
-docker build \
-  --build-arg INSTALL_GRAPHICSMAGICK=$gmagick \
-  -t $dimage ./app
+docker build -t $dimage ./app
 
 # Replace production dockerfile
 cd build
