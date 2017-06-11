@@ -18,5 +18,8 @@ ecmascript@0.8.0              # Enable ECMAScript2015+ syntax in app code
 shell-server@0.2.3            # Server-side component of the `meteor shell` command
 iron:router
 underscore@=1.0.10
-meteorhacks:cluster-manager
 meteorhacks:cluster
+meteorhacks:aggregate
+momentjs:moment
+aldeed:moment-timezone
+aldeed:collection2
