@@ -1,0 +1,15 @@
+{
+  "name": "app",
+  "private": true,
+  "scripts": {
+    "start": "meteor run"
+  },
+  "dependencies": {
+    "babel-runtime": "^6.23.0",
+    "meteor-node-stubs": "~0.2.4",
+
+    "moment": "^2.13.0",
+    "moment-range": "^3.0.3",
+    "moment-timezone": "^0.5.4"
+  }
+}
