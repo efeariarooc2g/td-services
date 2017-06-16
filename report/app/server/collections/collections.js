@@ -5,6 +5,9 @@
 *
 */
 
+
+Users = new Mongo.Collection("users")
+
 Orders = new Mongo.Collection("orders")
 
 OrderTypes = new Mongo.Collection("ordertypes");
