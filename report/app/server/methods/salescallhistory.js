@@ -2,7 +2,7 @@
 
 
 let SalesCallHistoryHelpers = {
-    getRoutePlansInPeriod: function(aSalesPerson, startDate, endDate) {
+    getRoutePlansInPeriod: function(aSalesPerson, tenantId, startDate, endDate) {
         let periodStartMoment = moment(startDate)
         let periodEndMoment = moment(endDate)
 
@@ -25,7 +25,8 @@ let SalesCallHistoryHelpers = {
                                 $gte: aPositionHistory.startDate, 
                                 $lte: aPositionHistory.endDate
                             },
-                            salesPositionId: positionId
+                            salesPositionId: positionId,
+                            _groupId: tenantId
                         }).fetch()
                         routePlans.push(...routePlansInPeriod)                        
                     } else {
@@ -34,7 +35,8 @@ let SalesCallHistoryHelpers = {
                                 $gte: aPositionHistory.startDate, 
                                 $lte: endDate
                             },
-                            salesPositionId: positionId
+                            salesPositionId: positionId,
+                            _groupId: tenantId
                         }).fetch()
                         routePlans.push(...routePlansInPeriod)
                     }
@@ -44,7 +46,8 @@ let SalesCallHistoryHelpers = {
                             $gte: startDate, 
                             $lte: aPositionHistory.endDate
                         },
-                        salesPositionId: positionId
+                        salesPositionId: positionId,
+                        _groupId: tenantId
                     }).fetch()
                     routePlans.push(...routePlansInPeriod)
                     return false
@@ -57,7 +60,8 @@ let SalesCallHistoryHelpers = {
                         $gte: startDate, 
                         $lte: endDate
                     },
-                    salesPositionId: aSalesPerson.salesProfile.position
+                    salesPositionId: aSalesPerson.salesProfile.position,
+                    _groupId: tenantId
                 }).fetch()
                 routePlans.push(...routePlansInPeriod)
             }
@@ -188,7 +192,8 @@ Meteor.methods({
         let salesRepUserIds = searchFilters.salesRepUserIds
         if(!salesRepUserIds || salesRepUserIds.length === 0) {
             let salesPersons = Users.find({
-                "salesProfile.position": {$exists: true}
+                "salesProfile.position": {$exists: true},
+                group: tenantId
             }).fetch()
             salesRepUserIds = salesPersons.map(aSalesPerson => {
                 return aSalesPerson._id
@@ -200,7 +205,7 @@ Meteor.methods({
         _.each(salesRepUserIds, (aSalesPersonId) => {
             let aSalesPerson = Users.findOne({_id: aSalesPersonId})
 
-            let scheduledRoutePlans = SalesCallHistoryHelpers.getRoutePlansInPeriod(aSalesPerson, start, end)
+            let scheduledRoutePlans = SalesCallHistoryHelpers.getRoutePlansInPeriod(aSalesPerson, tenantId, start, end)
             // console.log(`\nroutePlans: `, scheduledRoutePlans)
             
             let numScheduledSalesVisits = SalesCallHistoryHelpers.getNumberOfScheduledVisitsInRoutePlans(scheduledRoutePlans)
