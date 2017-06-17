@@ -168,8 +168,6 @@ Meteor.methods({
             if(salesRepRoutePlan) {
                 let {salesVisitsMade, scheduledVisitsNum} = 
                     SalesCallHistoryHelpers.getSalesVisitsMadeAndNumScheduledVisits(aSalesPersonId, salesRepRoutePlan, startDate, endDate, timezone)
-                console.log(`salesVisitsMade: `, salesVisitsMade)
-                console.log(`scheduledVisitsNum: `, scheduledVisitsNum)
                 let numSalesVisitsMade = salesVisitsMade.length
 
                 let strikeRate = 0 
