@@ -2,119 +2,74 @@
 
 
 let SalesCallHistoryHelpers = {
-    getRoutePlansInPeriod: function(aSalesPerson, tenantId, startDate, endDate) {
-        let periodStartMoment = moment(startDate)
-        let periodEndMoment = moment(endDate)
 
-        let routePlans = []
-
-        if(aSalesPerson.salesProfile && aSalesPerson.salesProfile.history 
-            && aSalesPerson.salesProfile.history.position) {
-            let positionsHistory = aSalesPerson.salesProfile.history.position
-
-            _.each(positionsHistory, aPositionHistory => {
-                let positionId = aPositionHistory.position
-
-                let positionStartMoment = moment(aPositionHistory.startDate)
-                let positionEndMoment = moment(aPositionHistory.endDate)
-
-                if(positionStartMoment >= periodStartMoment) {
-                    if(positionEndMoment <= periodEndMoment) {
-                        let routePlansInPeriod = RoutePlans.find({
-                            startDate: {
-                                $gte: aPositionHistory.startDate, 
-                                $lte: aPositionHistory.endDate
-                            },
-                            salesPositionId: positionId,
-                            _groupId: tenantId
-                        }).fetch()
-                        routePlans.push(...routePlansInPeriod)                        
-                    } else {
-                        let routePlansInPeriod = RoutePlans.find({
-                            startDate: {
-                                $gte: aPositionHistory.startDate, 
-                                $lte: endDate
-                            },
-                            salesPositionId: positionId,
-                            _groupId: tenantId
-                        }).fetch()
-                        routePlans.push(...routePlansInPeriod)
-                    }
-                } else if(positionEndMoment >= periodStartMoment) {
-                    let routePlansInPeriod = RoutePlans.find({
-                        startDate: {
-                            $gte: startDate, 
-                            $lte: aPositionHistory.endDate
-                        },
-                        salesPositionId: positionId,
-                        _groupId: tenantId
-                    }).fetch()
-                    routePlans.push(...routePlansInPeriod)
-                    return false
-                }
-            })
-        } else {
-            if(periodEndMoment > moment(aSalesPerson.createdAt)) {
-                let routePlansInPeriod = RoutePlans.find({
-                    startDate: {
-                        $gte: startDate, 
-                        $lte: endDate
-                    },
-                    salesPositionId: aSalesPerson.salesProfile.position,
-                    _groupId: tenantId
-                }).fetch()
-                routePlans.push(...routePlansInPeriod)
-            }
-        }
-        return routePlans
-    },
-    getNumberOfScheduledVisitsInRoutePlans: function (routePlans) {
+    getSalesVisitsMadeAndNumScheduledVisits: function (userId, routePlan, startDate, endDate, timezone) {
+        let salesVisitsMade = []
         let scheduledVisitsNum = 0
+        //--
+        let startDateMoment = moment(startDate).tz(timezone)
+        let endDateMoment = moment(endDate).tz(timezone)
 
-        routePlans.forEach(aRoutePlan => {
-            let dayPlans = aRoutePlan.plan
-            if(dayPlans && dayPlans.length > 0) {
-                dayPlans.forEach(aDayPlan => {
-                    if(aDayPlan && aDayPlan.outlets && aDayPlan.outlets.length > 0) {
-                        scheduledVisitsNum += aDayPlan.outlets.length
+        // console.log(`routePlan: `, routePlan)
+        let routePlanStartDate = routePlan.startDate
+        // console.log(`routePlan.startDate: `, routePlan.startDate)
+        let routePlanStartMoment = moment(routePlanStartDate).tz(timezone)
+
+        let dayPlans = routePlan.plan
+        if(dayPlans && dayPlans.length > 0) {
+            if(routePlanStartMoment.isBefore(startDateMoment, 'day')) {
+                let iteratorMoment = startDateMoment.clone()
+
+                while(iteratorMoment.diff(endDateMoment) < 0) {
+                    let day = iteratorMoment.day()
+                    let aDayPlan = _.find(dayPlans, aDayPlan => {
+                        return aDayPlan.day === day
+                    })
+                    if(aDayPlan) {
+                        if(aDayPlan && aDayPlan.outlets && aDayPlan.outlets.length > 0) {
+                            let dayStart = iteratorMoment.startOf('day').toDate()
+                            let dayEnd = iteratorMoment.endOf('day').toDate()
+
+                            let salesVisitsOnDay = SalesVisits.find({
+                                checkedInAt: {$gte: dayStart, $lt: dayEnd},
+                                retailOutletId: {$in: aDayPlan.outlets},
+                                userId: userId
+                            }).fetch()
+                            salesVisitsMade.push(...salesVisitsOnDay)
+
+                            scheduledVisitsNum += aDayPlan.outlets.length
+                        }
                     }
-                })
-            }
-        })
+                    iteratorMoment.add(1, 'days')
+                }
+            } else if(endDateMoment.isAfter(startDateMoment, 'day')) {
+                let iteratorMoment = routePlanStartMoment.clone()
 
-        return scheduledVisitsNum
-    },
-    getSaleVisitsMadeOnRoutePlans: function(routePlans, userId) {
-        let salesVisits = []
+                while(iteratorMoment.diff(endDateMoment) < 0) {
+                    let day = iteratorMoment.day()
+                    let aDayPlan = _.find(dayPlans, aDayPlan => {
+                        return aDayPlan.day === day
+                    })
+                    if(aDayPlan) {
+                        if(aDayPlan && aDayPlan.outlets && aDayPlan.outlets.length > 0) {
+                            let dayStart = iteratorMoment.startOf('day').toDate()
+                            let dayEnd = iteratorMoment.endOf('day').toDate()
 
-        _.each(routePlans, aRoutePlan => {
-            let routePlanStartDate = aRoutePlan.startDate
+                            let salesVisitsOnDay = SalesVisits.find({
+                                checkedInAt: {$gte: dayStart, $lt: dayEnd},
+                                retailOutletId: {$in: aDayPlan.outlets},
+                                userId: userId
+                            }).fetch()
+                            salesVisitsMade.push(...salesVisitsOnDay)
 
-            let dayPlans = aRoutePlan.plan
-            if(dayPlans && dayPlans.length > 0) {
-                dayPlans.forEach(aDayPlan => {
-                    let dayIndex = aDayPlan.day
-                    let dayStart = moment(routePlanStartDate).add(dayIndex, 'day').startOf('day').toDate()
-                    let dayEnd = moment(routePlanStartDate).add(dayIndex, 'day').endOf('day').toDate()
-                    // console.log(`\nroutePlanStartDate: `, routePlanStartDate)
-                    // console.log(`routePlan.daysInWeek: `, aRoutePlan.daysInWeek)
-
-                    // console.log(`dayStart: `, dayStart)
-                    // console.log(`dayEnd: `, dayEnd)
-                    // console.log(`aDayPlan.outlets: `, JSON.stringify(aDayPlan.outlets))
-
-                    if(aDayPlan && aDayPlan.outlets && aDayPlan.outlets.length > 0) {
-                        let salesVisitsOnDay = SalesVisits.find({
-                            checkedInAt: {$gte: dayStart, $lt: dayEnd},
-                            retailOutletId: {$in: aDayPlan.outlets},
-                            userId: userId
-                        }).fetch()
-                        salesVisits.push(...salesVisitsOnDay)
+                            scheduledVisitsNum += aDayPlan.outlets.length
+                        }
                     }
-                })
-            }
-        })
-        return salesVisits
+                    iteratorMoment.add(1, 'days')
+                }
+            } 
+        }
+        return {salesVisitsMade, scheduledVisitsNum}
     },
     getNumOfSalesVisitsWithTasksMade: function(salesVisits) {
         let numVisitsWithOrdersMade = 0
@@ -203,65 +158,68 @@ Meteor.methods({
         let response = []
 
         _.each(salesRepUserIds, (aSalesPersonId) => {
-            let aSalesPerson = Users.findOne({_id: aSalesPersonId})
+            let aSalesPerson = Users.findOne({_id: aSalesPersonId, group: tenantId})
 
-            let scheduledRoutePlans = SalesCallHistoryHelpers.getRoutePlansInPeriod(aSalesPerson, tenantId, start, end)
-            // console.log(`\nroutePlans: `, scheduledRoutePlans)
-            
-            let numScheduledSalesVisits = SalesCallHistoryHelpers.getNumberOfScheduledVisitsInRoutePlans(scheduledRoutePlans)
-            // console.log(`numScheduledSalesVisits: `, numScheduledSalesVisits)
-
-            let salesVisitsMade = SalesCallHistoryHelpers.getSaleVisitsMadeOnRoutePlans(scheduledRoutePlans, aSalesPersonId)
-            let numSalesVisitsMade = salesVisitsMade.length
-
-            let strikeRate = 0 
-            if(numScheduledSalesVisits > 0) {
-                strikeRate = ((numSalesVisitsMade / numScheduledSalesVisits) * 100).toFixed(2)
-            } else {
-                strikeRate = '---'
-            }
-
-            let numVisitsWithTasks = SalesCallHistoryHelpers.getNumOfSalesVisitsWithTasksMade(salesVisitsMade)
-            // console.log(`numVisitsWithTasks: `, numVisitsWithTasks)
-            let productiveCalls = numVisitsWithTasks.numVisitsWithOrdersMade
-
-            let productivity = 0 
-            if(numScheduledSalesVisits > 0) {
-                productivity = ((productiveCalls / numScheduledSalesVisits) * 100).toFixed(2)
-            } else {
-                productivity = '---'
-            }
-
-            let salesMade = SalesCallHistoryHelpers.getSalesQuantityMadeInSalesVisits(aSalesPerson._id, salesVisitsMade)
-            let actualAmountSold = salesMade.actualAmountSold
-            let actualQuanitySold = salesMade.actualQuanitySold
-
-            let dropSize = 0
-            if(productiveCalls > 0) {
-                dropSize = (actualQuanitySold / productiveCalls).toFixed(2)
-            }
-
-            let opportunities = SalesCallHistoryHelpers.getOpportunitiesMadeInSalesVisits(aSalesPerson._id, salesVisitsMade)
-
-            response.push({
-                userId: aSalesPerson._id,
-                salesPerosnFullName: aSalesPerson.profile.fullName,
-                scheduledCalls: numScheduledSalesVisits,
-                callsMade: numSalesVisitsMade,
-                strikeRate: strikeRate,
-
-                productiveCalls: productiveCalls,
-                productivity: productivity,
-
-                totalDropSize: dropSize,
-                salesValue: actualAmountSold,
-
-                outletAudit: numVisitsWithTasks.numVisitsWithAuditsMade,
-                presentations: numVisitsWithTasks.numVisitsWithPresentationsMade,
-                opportunities: opportunities
+            let salesRepRoutePlan = RoutePlans.findOne({
+                salesPositionId: aSalesPerson.salesProfile.position,
+                _groupId: tenantId
             })
-        })
 
+            if(salesRepRoutePlan) {
+                let {salesVisitsMade, scheduledVisitsNum} = 
+                    SalesCallHistoryHelpers.getSalesVisitsMadeAndNumScheduledVisits(aSalesPersonId, salesRepRoutePlan, startDate, endDate, timezone)
+                console.log(`salesVisitsMade: `, salesVisitsMade)
+                console.log(`scheduledVisitsNum: `, scheduledVisitsNum)
+                let numSalesVisitsMade = salesVisitsMade.length
+
+                let strikeRate = 0 
+                if(scheduledVisitsNum > 0) {
+                    strikeRate = ((numSalesVisitsMade / scheduledVisitsNum) * 100).toFixed(2)
+                } else {
+                    strikeRate = '---'
+                }
+
+                let numVisitsWithTasks = SalesCallHistoryHelpers.getNumOfSalesVisitsWithTasksMade(salesVisitsMade)
+                // console.log(`numVisitsWithTasks: `, numVisitsWithTasks)
+                let productiveCalls = numVisitsWithTasks.numVisitsWithOrdersMade
+
+                let productivity = 0 
+                if(scheduledVisitsNum > 0) {
+                    productivity = ((productiveCalls / scheduledVisitsNum) * 100).toFixed(2)
+                } else {
+                    productivity = '---'
+                }
+
+                let salesMade = SalesCallHistoryHelpers.getSalesQuantityMadeInSalesVisits(aSalesPerson._id, salesVisitsMade)
+                let actualAmountSold = salesMade.actualAmountSold
+                let actualQuanitySold = salesMade.actualQuanitySold
+
+                let dropSize = 0
+                if(productiveCalls > 0) {
+                    dropSize = (actualQuanitySold / productiveCalls).toFixed(2)
+                }
+
+                let opportunities = SalesCallHistoryHelpers.getOpportunitiesMadeInSalesVisits(aSalesPerson._id, salesVisitsMade)
+
+                response.push({
+                    userId: aSalesPerson._id,
+                    salesPerosnFullName: aSalesPerson.profile.fullName,
+                    scheduledCalls: scheduledVisitsNum,
+                    callsMade: numSalesVisitsMade,
+                    strikeRate: strikeRate,
+
+                    productiveCalls: productiveCalls,
+                    productivity: productivity,
+
+                    totalDropSize: dropSize,
+                    salesValue: actualAmountSold,
+
+                    outletAudit: numVisitsWithTasks.numVisitsWithAuditsMade,
+                    presentations: numVisitsWithTasks.numVisitsWithPresentationsMade,
+                    opportunities: opportunities
+                })
+            }
+        })
         return response
     }
 })
